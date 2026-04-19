@@ -1,13 +1,11 @@
 ---
 name: LogEarn-skills
 description: >-
-  This skill should be used when the user asks to query "AI signal", "AI综合信号",
-  "hot tokens", "热门榜单", "pool list", "池子信息", "liquidity pool",
-  "k-line", "K线", "candlestick", "token info", "token details", "Token详情",
-  "get kline", "查K线", "查信号", "查热门", "查仓位", "wallet positions",
-  "coin balance", "查余额", "trade logs", "交易明细", "limit order", "限价单",
-  "buy token", "sell token", "solana swap", "bsc swap",
-  or mentions on-chain data queries or trading for Solana / BSC via LogEarn Open API.
+  当用户询问 "精选信号"、"持仓指标"、"热门Token"、"热门榜单"、
+  "k-line"、"K线"、"candlestick"、"token info"、
+  "token details"、"Token详情"、"get kline"、"查K线"、"查信号"、"查热门"，
+  或提及通过 LogEarn Open API 查询 Solana / BSC 链上数据时，应使用本技能。
+  通过 LogEarn Skill Open API 实现链上数据查询和 AI 信号获取。
 version: 1.0.0
 allowed-tools: Bash, Read, AskUserQuestion
 metadata:

@@ -39,12 +39,12 @@ def fmt_signals(data: dict) -> list:
         if not isinstance(chain_tokens, list):
             continue
 
-        formatted = fmt_tools_format_signal(chain_tokens[2])
-        result.append(formatted) 
-        # for token in chain_tokens:
-        #     formatted = fmt_tools_format_signal(token)
-        #     if formatted is not None:
-        #         result.append(formatted)    
+        # formatted = fmt_tools_format_signal(chain_tokens[2])
+        # result.append(formatted) 
+        for token in chain_tokens:
+            formatted = fmt_tools_format_signal(token)
+            if formatted is not None:
+                result.append(formatted)    
     return [result]
 
 # ---------------------------------------------------------------------------

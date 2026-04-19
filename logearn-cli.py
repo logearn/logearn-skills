@@ -91,6 +91,8 @@ def main():
 
     elif cmd == 'log-get-token-info':
         if 'token' not in opts: die('--token <address> required')
+        if 'chain' not in opts: die('--chain <chain> required')
+
         chain = [int(opts['chain'])] if 'chain' in opts else None
         res   = api.get_token_info(base=opts['token'], chain=chain)
         data  = helpers.unwrap(res, 'get-token-info')
@@ -107,6 +109,7 @@ def main():
 
     elif cmd == 'log-get-kline':
         if 'token' not in opts: die('--token <address> required')
+        if 'chain' not in opts: die('--chain <chain> required')        
 
         res  = api.get_kline_list(
             base          = opts['token'],
