@@ -169,7 +169,8 @@ def main():
         res  = api.solana_swap(caller=opts['caller'], event_type=opts['event'],
                                action=json.loads(opts['action']))
         data = helpers.unwrap(res, 'swap-solana')
-        print(helpers.fmt_swap_result(data))
+        print(json.dumps(helpers.fmt_swap_result(data), ensure_ascii=False, indent=2, sort_keys=True))
+
 
     elif cmd == 'log-swap-bsc':
         if 'caller' not in opts: die('--caller <wallet> required')
@@ -178,7 +179,7 @@ def main():
         res  = api.bsc_swap(caller=opts['caller'], event_type=opts['event'],
                             action=json.loads(opts['action']))
         data = helpers.unwrap(res, 'swap-bsc')
-        print(helpers.fmt_swap_result(data))
+        print(json.dumps(helpers.fmt_swap_result(data), ensure_ascii=False, indent=2, sort_keys=True))
 
     elif cmd == 'log-limit-order':
         if 'caller' not in opts: die('--caller <wallet> required')
@@ -193,7 +194,7 @@ def main():
             expired_at    = int(opts['expires']) if 'expires' in opts else None,
         )
         data = helpers.unwrap(res, 'limit-order')
-        print(f'order created  id:{data["id"]}  status:{data["status"]}')
+        print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
 
 
     elif cmd == 'log-quota':

@@ -76,5 +76,4 @@ def fmt_limit_orders(data: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def fmt_swap_result(res: dict) -> str:
-    d = res.get('data') or {}
-    return f'status: {res.get("status")}  txId: {d.get("txId", "n/a")}  tx_status: {d.get("status", "n/a")}'
+    return res

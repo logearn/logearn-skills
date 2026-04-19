@@ -7,6 +7,7 @@ https_proxy / HTTPS_PROXY environment variables, so no proxy config is needed.
 import json
 import os
 import urllib.request
+import time
 
 BASE = os.environ.get('LOGEARN_API_BASE', 'https://logearn.com/logearn')
 KEY  = os.environ.get('LOGEARN_API_KEY', '')
@@ -131,12 +132,16 @@ def get_limit_orders(address: str, status: int = None, page_size: int = None,
 
 def solana_swap(caller: str, event_type: str, action: dict) -> dict:
     """Solana交易 ⚠️ real funds"""
+    action['timestamp'] = int(time.time() * 1000)
+    action['key'] = event_type
     return call_skill('solana_swap', {'caller': caller, 'eventType': event_type,
                                       'action': action})
 
 
 def bsc_swap(caller: str, event_type: str, action: dict) -> dict:
     """BSC交易 ⚠️ real funds"""
+    action['timestamp'] = int(time.time() * 1000)
+    action['key'] = event_type
     return call_skill('bsc_swap', {'caller': caller, 'eventType': event_type,
                                    'action': action})
 
