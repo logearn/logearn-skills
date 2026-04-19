@@ -1,0 +1,1028 @@
+---
+name: LogEarn-skills
+description: >-
+  当用户询问 "AI signal"、"AI综合信号"、"hot tokens"、"热门榜单"、"pool list"、
+  "池子信息"、"liquidity pool"、"k-line"、"K线"、"candlestick"、"token info"、
+  "token details"、"Token详情"、"get kline"、"查K线"、"查信号"、"查热门"，
+  或提及通过 LogEarn Open API 查询 Solana / BSC 链上数据时，应使用本技能。
+  通过 LogEarn Skill Open API 实现链上数据查询和 AI 信号获取。
+version: 1.0.0
+allowed-tools: Bash, Read, AskUserQuestion
+metadata:
+  openclaw:
+    requires:
+      env: ["LOGEARN_API_KEY"]
+      bins: ["curl"]
+    primaryEnv: "LOGEARN_API_KEY"
+    emoji: "📡"
+    homepage: "https://logearn.com"
+---
+
+# LogEarn Open API
+
+通过 LogEarn Open API 可以访问 LogEarn 任何专业的分析数据，以及信号。同时 使用 LogEarn Open API 可以享受全网最低 0.1% 的优惠费率。
+
+## 前置条件
+
+使用前请设置以下环境变量：
+- `LOGEARN_API_KEY`（必填）— 您的 LogEarn Open API Key（格式：`sk_xxxxxxxx`），登录 https://logearn.com 官网 获取。
+- `LOGEARN_API_BASE`（可选）— API 基础地址，默认为 `https://logearn.com/logearn`
+
+## 鉴权方式
+
+根据接口类型使用以下鉴权方式：
+
+| 模式 | 适用接口 | 方式 |
+|------|-----------|-----|
+| API Key | 所有 `/call/*`、`/quota`、`/stats`、`/keys`（GET/DELETE） | 请求头 `X-Api-Key: sk_xxx` |
+
+## 计费说明
+
+- 大部分 API 不消耗 Credits，只有频率限制；部分高耗资源的 API 会有 Credits 调用限制，具体消耗情况参考下面表格
+- **限速**：每个 API Key 独立限速，默认上限 **600 credits/min**, 若需要调高，联系客服 [@chickenbro_logearn](href="https://t.me/chickenbro_logearn)
+- **充值**：0.5 SOL = 100,000 credits，最低充值 100,000 credits
+- 所有 API Keys 共享所有的 Credits
+
+## 链 ID
+
+| 链 | ID |
+|-------|----|
+| Solana | `3` |
+| BSC | `56` |
+
+## API 参考文档
+
+> **严格限制：仅以下接口存在**
+>
+> 完整接口列表：
+> - `POST /open/api/v1/call/{skillCode}` — 调用技能
+> - `GET  /open/api/v1/skills` — 获取所有可用技能列表（公开，无需 apikey）
+> - `GET  /open/api/v1/quota` — 查询配额余额
+> - `GET  /open/api/v1/stats` — 查询调用统计（最近 30 天）
+> - `POST /open/api/v1/keys` — 创建 API Key（**需登录**）
+> - `GET  /open/api/v1/keys` — 获取我的 API Key 列表
+> - `DELETE /open/api/v1/keys/{keyId}` — 禁用 API Key
+> - `POST /open/api/v1/recharge` — 充值配额（**需登录**）
+
+---
+
+#### 技能列表（skillCode 枚举）
+
+| skillCode | 名称 | 消耗            | 必填参数 |
+|-----------|------|---------------|---------|
+| `get_all_signal` | AI综合信号 | **3 credits** | — |
+| `get_kline_list` | K线数据 | 2 credit      | `base` |
+| `get_hot_list` | 热门榜单 | 1 credit      | — |
+| `get_token_signal` | Token历史信号 | 1 credit      | `index_token_address` |
+| `get_coin_balance` | 账号Coin余额 | 1 credit      | `address` |
+| `get_token_info` | Token详情 | 1 credit      | `params.base` |
+| `get_wallet_positions` | 仓位查询 | **免费**（1次/s）  | `address` |
+| `solana_swap` | Solana交易 | **免费**（1次/s）  | `caller`、`eventType`、`action` |
+| `bsc_swap` | BSC交易 | **免费**（1次/s）  | `caller`、`eventType`、`action` |
+| `limit_order` | 挂限价单 | **免费**（1次/s）  | `caller`、`tokenAddress`、`action` |
+| `get_limit_orders` | 查询限价单 | **免费**（1次/s）  | `address` |
+| `get_trade_logs` | 交易明细 | **免费**（1次/s）  | `address` |
+
+---
+
+### POST /open/api/v1/call/{skillCode}
+
+技能调用核心接口。每次调用消耗 对应的 **credit**，受 API Key 的 `credits_per_minute` 限速约束。
+
+**鉴权**: 请求头 `X-Api-Key: sk_xxx`
+
+**Path 参数**:
+
+| 参数 | 说明 |
+|------|------|
+| `skillCode` | 技能标识，取值见下方技能列表 |
+
+**通用响应结构**:
+
+```json
+{
+  "code": 200,
+  "msg": "success",
+  "data": { }
+}
+```
+
+**调用失败响应**:
+
+```json
+{
+  "code": 500,
+  "msg": "Credits per minute exceeded: 600 credits/min",
+  "data": null
+}
+```
+
+
+#### Skill: `get_all_signal` — AI综合信号
+
+多链 AI 综合交易信号，涵盖 Solana 和 BSC。
+
+**请求参数**:
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `chain` | `string[]` | 否 | `["3","56"]` | 链 ID 列表（3=Solana，56=BSC） |
+
+**请求示例**:
+
+```bash
+# 默认参数（Solana + BSC 全链信号）
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_all_signal" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+**响应结构**:
+
+`data` 以链 ID 为 key 分组，每条为一个 [包含信号数据的 Token 对象](#token-信号对象-signal-token)。
+
+```json
+[ 
+  { "...包含信号数据的 Token 对象, 见文末数据对象说明" },
+  { "...包含信号数据的 Token 对象, 见文末数据对象说明" },
+  { "...包含信号数据的 Token 对象, 见文末数据对象说明" },
+  { "...包含信号数据的 Token 对象, 见文末数据对象说明" },  
+]
+```
+
+---
+
+#### Skill: `get_hot_list` — 热门榜单
+
+多链热门 Token 榜单，按热度/交易量排序。
+
+**请求参数**:
+
+| 字段 | 类型 | 必填 | 默认值 | 说明                                         |
+|------|------|------|--------|--------------------------------------------|
+| `chain` | `string[]` | 否 | `["3","56"]` | 链 ID 列表                                    |
+| `tokenGroupId` | `string` | 否 | `5m` | 热门分组ID, 最近5分钟：5m，最近1小时：1h |
+
+**请求示例**:
+
+```bash
+# 指定分组
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_hot_list" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"chain":["3","56"],"tokenGroupId":12}'
+```
+
+**响应结构**:
+
+```json
+[ 
+  { "...包含信号数据的 Token 对象, 见文末数据对象说明" },
+  { "...包含信号数据的 Token 对象, 见文末数据对象说明" },
+  { "...包含信号数据的 Token 对象, 见文末数据对象说明" },
+  { "...包含信号数据的 Token 对象, 见文末数据对象说明" },  
+]
+```
+
+---
+
+#### Skill: `get_token_info` — Token详情
+
+获取 Token 链上详情数据，包含价格、市值、持仓分布等。`params.base` 为必填。
+
+**请求参数**:
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `chain` | `integer[]` | 否 | `[3]` | 链 ID 列表（整数数组） |
+| `params.base` | `string` | **必填** | — | Token 合约地址 |
+
+**请求示例**:
+
+```bash
+# 查询 Solana Token 详情
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_token_info" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"chain":[3],"params":{"base":"DSSXu6XbYDgWnjMVzagcVF9QpVWXY2H9iexAc4mpump"}}'
+```
+
+**响应结构**:
+
+```json
+  { "...包含信号数据的 Token 对象, 见文末数据对象说明" },  
+```
+
+---
+
+#### Skill: `get_token_signal` — Token历史信号
+
+查询指定 Token 的所有 AI 历史信号记录，展示该 Token 在各时间节点的信号强度和走势。
+
+**请求参数**:
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `index_token_address` | `string` | **必填** | — | Token 合约地址 |
+| `chain` | `string` | **必填**  | -- | 链 ID：`"3"`=Solana，`"56"`=BSC |
+
+
+**请求示例**:
+
+```bash
+# 查询某 Token 的所有历史 AI 信号, 指定链（（SOLANA）
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_token_signal" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"index_token_address":"FDBjQdN4Uf8rsJfn9eNRbmNjaQktCdqJ63Ptijfdpump","chain":"3"}'
+```
+
+**响应结构**:
+
+```json
+  { "...包含信号数据的 Token 对象, 见文末数据对象说明" },  
+```
+
+---
+
+#### Skill: `get_kline_list` — K线数据
+
+获取 Token K线（蜡烛图）数据，支持多周期。`base` 为必填。
+
+**请求参数**:
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `chain` | `string` | 否 | `"3"` | 链 ID（字符串） |
+| `base` | `string` | **必填** | — | Token 合约地址 |
+| `intervalTime` | `integer` | 否 | `900` | K线周期（秒）：60/300/900/3600/86400 |
+| `endTime` | `long` | 否 | 当前时间戳 | 结束时间（Unix 秒） |
+| `pageSize` | `integer` | 否 | `96` | 返回条数（建议不超过 200） |
+
+**intervalTime 常用取值**:
+
+| 值 | 周期 |
+|----|------|
+| `60` | 1分钟 |
+| `300` | 5分钟 |
+| `900` | 15分钟 |
+| `3600` | 1小时 |
+| `86400` | 1天 |
+
+**请求示例**:
+
+```bash
+# 最近96根15分钟K线（默认）
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_kline_list" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"base":"7c5gm5fqvQuyteJ9G4pFaubqRVHuegsFXtfHJXBBpump"}'
+
+# 自定义周期和时间范围
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_kline_list" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"chain":"3","base":"7c5gm5fqvQuyteJ9G4pFaubqRVHuegsFXtfHJXBBpump","intervalTime":900,"endTime":1775883812,"pageSize":96}'
+```
+
+**响应结构**:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "body": [
+      {
+        "time": 1775883000,
+        "open": "0.001234",
+        "openU": "0.001234",
+        "high": "0.001300",
+        "highU": "0.001300",
+        "low": "0.001200",
+        "lowU": "0.001200",
+        "close": "0.001280",
+        "closeU": "0.001280",
+        "volume": "98765",
+        "volumeU": "98765"
+      }
+    ]
+  }
+}
+```
+带 **U** 结尾，表示以当时的U计价的价格，否则表示的时候以对应链的 Native Token 计价的价格。
+
+
+
+---
+
+#### Skill: `get_coin_balance` — 账号Coin余额
+
+查询 Solana 或 BSC 账号的原生币余额（SOL / BNB）。直接读取链上 RPC，实时返回。
+
+**请求参数**:
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `address` | `string` | **必填** | — | 钱包地址（Solana Base58 或 EVM 0x...） |
+| `chain` | `integer` | 否 | `3` | 链 ID：3=Solana，56=BSC |
+
+**请求示例**:
+
+```bash
+# Solana 账号 SOL 余额
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_coin_balance" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY"}'
+
+# BSC 账号 BNB 余额
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_coin_balance" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"address":"0xed2eebf5929f9230a48dfbae0ca085e7a1425e6f","chain":56}'
+```
+
+**响应结构**:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "address": "Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY",
+    "chain": 3,
+    "symbol": "SOL",
+    "balance": "1.234567890",
+    "balanceRaw": "1234567890"
+  }
+}
+```
+
+> `balance` 为人类可读格式（SOL/BNB 单位）；`balanceRaw` 为原始单位（lamports / wei）。
+
+
+---
+
+#### Skill: `get_wallet_positions` — 仓位查询
+
+查询指定钱包地址当前持仓的 Token 列表，支持多地址、分页、排序。`address` 为必填。
+
+**请求参数**:
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `address` | `string` | **必填** | — | 钱包地址，多地址用英文逗号分隔（支持 Solana / EVM 混合） |
+| `page_size` | `integer` | 否 | `20` | 每页条数 |
+| `page_num` | `integer` | 否 | `0` | 页码（从 0 开始） |
+| `sort_field` | `string` | 否 | `open_position_time` | 排序字段（`open_position_time` / `value_usd` 等） |
+| `sort_direction` | `string` | 否 | `desc` | 排序方向：`asc` / `desc` |
+| `hold_amount` | `string` | 否 | `"1"` | 最低持仓数量过滤 |
+| `wcoin_scale` | `integer` | 否 | `9` | 小数位精度 |
+
+**请求示例**:
+
+```bash
+# 查询单地址持仓（默认参数）
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_wallet_positions" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY"}'
+
+# 多链多地址 + 分页
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_wallet_positions" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "address": "Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY,0xed2eebf5929f9230a48dfbae0ca085e7a1425e6f",
+    "page_size": 20,
+    "page_num": 0,
+    "sort_field": "open_position_time",
+    "sort_direction": "desc",
+    "hold_amount": "1"
+  }'
+```
+
+**响应结构**:
+
+```json
+[
+  {
+    "avg_price": 6.386222241764064,
+    "chain": 3,
+    "copied_address": "0x0",
+    "copyer_address": "Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY",
+    "created_time": "2026-04-12 02:55:08",
+    "decimals": 9,
+    "hold_amount": 0.001842201,
+    "hold_cost_coin": 0.011764705,
+    "id": 19119140,
+    "is_trigger_entrust_stop_profit1": 0,
+    "is_trigger_entrust_stop_profit2": 0,
+    "is_trigger_entrust_stop_profit3": 0,
+    "key": "Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY-0x0-PreLWGkkeqG1s4HEfFZSy9moCrJ7btsHuUtfcCeoRua-3-1775933706",
+    "last_order_time": "1775933706",
+    "last_price": 6.771265886540085,
+    "last_swap_type": "buy",
+    "max_price": 6.846866140340169,
+    "open_position_time": 1775933706,
+    "position_user_updated": 1,
+    "quote_address": null,
+    "realized_cost": 0.0,
+    "realized_pnl": 0.0,
+    "realized_return": 0.0,
+    // 条件止盈相关
+    "entrust_condition_stop_profit1": 50.0,
+    "entrust_condition_stop_profit2": 0.0,
+    "entrust_condition_stop_profit3": 0.0,
+    "entrust_stop_profit1": 5.0,
+    "entrust_stop_profit1_percent": 100.0,
+    "entrust_stop_profit2": 0.0,
+    "entrust_stop_profit2_percent": 0.0,
+    "entrust_stop_profit3": 0.0,
+    "entrust_stop_profit3_percent": 0.0,
+    // 移动止盈止损
+    "withdraw_condition_stop_loss1": 0.0,
+    "withdraw_condition_stop_loss2": 0.0,
+    "withdraw_condition_stop_loss3": 0.0,
+    "withdraw_stop_loss1": 0.0,
+    "withdraw_stop_loss1_percent": 0.0,
+    "withdraw_stop_loss2": 0.0,
+    "withdraw_stop_loss2_percent": 0.0,
+    "withdraw_stop_loss3": 0.0,
+    "withdraw_stop_loss3_percent": 0.0,
+    "withdraw_stop_loss_number": 0,
+    // 分批止损    
+    "stop_loss1": 0.0,
+    "stop_loss1_percent": 0.0,
+    "stop_loss2": 0.0,
+    "stop_loss2_percent": 0.0,
+    "stop_loss3": 0.0,
+    "stop_loss3_percent": 0.0,
+    "stop_loss_number": 0,
+    // 分批止盈  
+    "stop_profit1": 100.0,
+    "stop_profit1_percent": 50.0,
+    "stop_profit2": 0.0,
+    "stop_profit2_percent": 0.0,
+    "stop_profit3": 0.0,
+    "stop_profit3_percent": 0.0,
+    "stop_profit4": 0.0,
+    "stop_profit4_percent": 0.0,
+    "stop_profit5": 0.0,
+    "stop_profit5_percent": 0.0,
+    "stop_profit_number": 0,
+    "symbol": "KALSHI",
+    "token_address": "PreLWGkkeqG1s4HEfFZSy9moCrJ7btsHuUtfcCeoRua",
+    "total_cost_coin": 0.011764705,
+    "total_pnl": 0.0007093277874500314,
+    "total_receive_coin": 0.0,
+    "total_record": 3,
+    "total_return": 0.060292866455217656,
+    "total_supply": "1311999515466",
+    "total_volume": "1842201",
+    "unrelized_pnl": 0.0007093277874500311,
+    "unrelized_return_rate": "0.06029286645521762994",
+    "updated_time": "2026-04-19 22:36:41",
+  }  
+]
+```
+
+---
+
+#### Skill: `solana_swap` / `bsc_swap` — 链上交易
+
+两个 Skill 逻辑完全相同，**唯一区别是路由协议**：
+- `solana_swap`：`protocol=swap`，`chainId=3`，`caller` 为 Solana Base58 地址
+- `bsc_swap`：`protocol=pancake`，`chainId=56`，`caller` 为 EVM `0x...` 地址
+
+以上路由字段由服务端自动补充，无需手动传入。
+
+**顶层请求参数**:
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `caller` | `string` | **必填** | 执行交易的钱包地址（Solana Base58 或 EVM 0x...） |
+| `eventType` | `string` | **必填** | 交易方向：`"buy"` / `"sell"` |
+| `action` | `object` | **必填** | 交易参数对象，见下方 action 字段说明 |
+
+**`action` 基础字段**:
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `tokenIn` | `string` | **必填** | 输入 Token 地址（买入时为原生币地址，卖出时为 Token 地址） |
+| `tokenOut` | `string` | **必填** | 输出 Token 地址（买入时为 Token 地址，卖出时为原生币地址） |
+| `amountIn` | `string` | **必填** | 输入数量（未处理精度的原始整数，如 lamports / wei） |
+| `timestamp` | `integer` | **必填** | 当前时间戳（毫秒） |
+| `key` | `string` | **必填** | 操作方向，与 `eventType` 一致：`"buy"` / `"sell"` |
+| `antiMev` | `integer` | 否 | 是否防夹子：`1`=开启，`0`=关闭，默认 `1` |
+| `customRpc` | `string` | 否 | 自定义 RPC 地址，留空使用默认 |
+| `autoMaxFee` | `float` | 否 | 最大网络费用（SOL/BNB），如 `0.2`，留空不限制 |
+
+**`action` 分批止盈**（可选，不填则不挂止盈）:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `stopProfit1` ~ `stopProfit5` | `float` | 第 1~5 档止盈触发涨幅（%），如 `100` 表示涨 100% 时止盈 |
+| `stopProfit1Percent` ~ `stopProfit5Percent` | `float` | 对应档位卖出仓位比例（%），如 `50` 表示卖出 50% |
+
+**`action` 分批止损**（可选）:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `stopLoss1` ~ `stopLoss3` | `float` | 第 1~3 档止损触发跌幅（%），如 `30` 表示跌 30% 时止损 |
+| `stopLoss1Percent` ~ `stopLoss3Percent` | `float` | 对应档位卖出仓位比例（%） |
+
+**`action` 移动止损**（可选）:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `withdrawStopLoss1` ~ `withdrawStopLoss3` | `float` | 第 1~3 档移动止损触发跌幅（%，从最高点回撤） |
+| `withdrawStopLoss1Percent` ~ `withdrawStopLoss3Percent` | `float` | 对应档位卖出仓位比例（%） |
+
+**`action` 条件止盈**（可选）:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `entrustConditionStopProfit1` ~ `entrustConditionStopProfit3` | `float` | 第 1~3 档条件止盈触发涨幅（%） |
+| `entrustStopProfit1` ~ `entrustStopProfit3` | `float` | 触发后的止盈目标涨幅（%） |
+| `entrustStopProfit1Percent` ~ `entrustStopProfit3Percent` | `float` | 触发后卖出仓位比例（%） |
+
+**请求示例**:
+
+```bash
+# Solana 买入
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/solana_swap" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "caller": "Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY",
+    "eventType": "buy",
+    "action": {
+      "tokenIn": "So11111111111111111111111111111111111111112",
+      "tokenOut": "2AmspLddd5rNmjCaG48UjAMPPKqs5FccnNbmvci8pump",
+      "amountIn": "11904761",
+      "timestamp": 1775895134134,
+      "key": "buy",
+      "antiMev": 1,
+      "autoMaxFee": 0.2,
+      "stopProfit1": 100,
+      "stopProfit1Percent": 50,
+      "stopLoss1": 30,
+      "stopLoss1Percent": 100
+    }
+  }'
+
+# BSC 卖出
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/bsc_swap" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "caller": "0xed2eebf5929f9230a48dfbae0ca085e7a1425e6f",
+    "eventType": "sell",
+    "action": {
+      "tokenIn": "0x606c308be2dd3ff3da531134da51ccf831e24444",
+      "tokenOut": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+      "amountIn": "81309622878565000000000",
+      "timestamp": 1775896791257,
+      "key": "sell",
+      "antiMev": 1
+    }
+  }'
+```
+
+**响应结构**:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "code": 200,
+    "status": "success",
+    "data": {
+      "txId": "5x3kL...交易哈希",
+      "status": "pending"
+    }
+  }
+}
+```
+
+---
+
+#### Skill: `limit_order` — 挂限价单
+
+
+在 Solana 或 BSC 链上创建限价单，当价格满足 `limitNumber` 条件时自动触发交易。
+
+**请求参数**:
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `caller` | `string` | **必填** | — | 执行交易的钱包地址 |
+| `tokenAddress` | `string` | **必填** | — | 目标 Token 合约地址 |
+| `action` | `object` | **必填** | — | 交易参数对象，透传并存储到限价单 |
+| `chainId` | `integer` | 否 | `3` | 链 ID：3=Solana，56=BSC（同时决定 `protocol`） |
+| `eventType` | `integer` | 否 | `1` | 交易方向：1=买入，2=卖出 |
+| `expiredAt` | `long` | 否 | 7天后 | 过期时间（Unix 秒） |
+
+`action` 除包含与 `solana_swap` / `bsc_swap` 相同的基础字段（`tokenIn`、`tokenOut`、`amountIn`、`antiMev` 等）外，还需额外传入以下限价单专有字段。`protocol`（由 `chainId` 推导：3→`swap`，56→`pancake`）和 `status=1` 由服务端自动设置。
+
+**`action` 限价单专有字段**（必填）:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `limitNumber` | `float` | 触发条件目标值（币本位价格，已处理精度）|
+| `limitType` | `integer` | 参考类型：`1` = 价格触发，`2` = 市值触发 |
+| `direction` | `integer` | 触发方向：`1` = 向上触发（买单：等待价格下跌到目标价再买），`2` = 向下触发（卖单：等待价格上涨到目标价再卖） |
+
+> **方向说明**：买单通常等价格跌到目标位（`direction=1`，价格从上方穿越 `limitNumber`）；卖单通常等价格涨到目标位（`direction=2`，价格从下方穿越 `limitNumber`）。若 `percent > 0`（目标价高于当前价）用 `direction=1`，`percent < 0` 用 `direction=2`。
+
+**`action` 止盈止损字段**（可选，与 swap 接口完全相同）:
+
+> 支持所有 `solana_swap` / `bsc_swap` 中的止盈止损参数：分批止盈（`stopProfit1~5`）、分批止损（`stopLoss1~3`）、移动止损（`withdrawStopLoss1~3`）、条件止盈（`entrustConditionStopProfit1~3`）。具体字段见[链上交易 action 止盈止损参数说明](#skill-solana_swap--bsc_swap--链上交易)。
+
+**请求示例**:
+
+```bash
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/limit_order" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "caller": "Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY",
+    "tokenAddress": "FDBjQdN4Uf8rsJfn9eNRbmNjaQktCdqJ63Ptijfdpump",
+    "chainId": 3,
+    "eventType": 1,
+    "expiredAt": 1807445030,
+    "action": {
+      "tokenIn": "So11111111111111111111111111111111111111112",
+      "tokenOut": "FDBjQdN4Uf8rsJfn9eNRbmNjaQktCdqJ63Ptijfdpump",
+      "amountIn": "11904761",
+      "timestamp": 1775909030424,
+      "key": "buy",
+      "antiMev": 1,
+      "customRpc": "",
+      "autoMaxFee": 0.2,
+      "limitNumber": 0.00013788786148931755,
+      "limitType": 1,
+      "direction": 1,
+      "stopProfit1": 100,
+      "stopProfit1Percent": 50
+    }
+  }'
+```
+
+**响应结构**:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "id": 12345,
+    "status": "created"
+  }
+}
+```
+
+---
+
+#### Skill: `get_limit_orders` — 查询限价单
+
+查询指定钱包地址的限价单列表，支持按状态筛选。
+
+**请求参数**:
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `address` | `string` | **必填** | — | 钱包地址，多地址用英文逗号分隔 |
+| `status` | `integer` | 否 | `1` | 订单状态：-1=已取消，0=未执行，1=已执行，2=已过期 |
+| `page_size` | `integer` | 否 | `100` | 每页条数 |
+| `page_num` | `integer` | 否 | `0` | 页码（从 0 开始） |
+
+**请求示例**:
+
+```bash
+# 查询待执行的限价单（默认 status=1）
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_limit_orders" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY,0xed2eebf5929f9230a48dfbae0ca085e7a1425e6f"}'
+
+# 查询已取消的订单
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_limit_orders" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY","status":-1,"page_size":50}'
+```
+
+**响应结构**:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "rows": [
+      {
+        "id": 12345,
+        "caller": "Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY",
+        "tokenAddress": "FDBjQdN4Uf8rsJfn9eNRbmNjaQktCdqJ63Ptijfdpump",
+        "eventType": 1,
+        "limitNumber": 0.00013789,
+        "status": 1,
+        "expiredAt": 1807445030,
+        "chain": 3
+      }
+    ],
+    "total": 3
+  }
+}
+```
+
+---
+
+#### Skill: `get_trade_logs` — 交易明细
+
+查询指定钉包的链上交易流水（买卖记录），支持 Solana 和 BSC 。
+
+**请求参数**:
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `address` | `string` | **必填** | — | 钉包地址，多地址用英文逗号分隔（Solana / EVM 可混合） |
+| `chain` | `string` | 否 | `"3"` | 链 ID：`"3"`=Solana，`"56"`=BSC（`protocol` 由服务端自动推导） |
+| `wcoin` | `string` | 否 | chain=3 时自动填 SOL 地址 | 原生币合约地址 |
+| `page_size` | `integer` | 否 | `100` | 每页条数 |
+| `page_num` | `integer` | 否 | `0` | 页码（从 0 开始） |
+
+**请求示例**:
+
+```bash
+# 查询 Solana 钉包交易明细（默认参数）
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_trade_logs" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY"}'
+
+# 多地址查询（Solana + BSC 钉包交易合并）
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_trade_logs" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "address": "Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY",
+    "chain": "3",
+    "page_size": 100,
+    "page_num": 0
+  }'
+
+# 查询 BSC 钉包交易明细（protocol 由 chain 自动推导，无需传入）
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_trade_logs" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "address": "0xed2eebf5929f9230a48dfbae0ca085e7a1425e6f",
+    "chain": "56"
+  }'
+```
+
+**响应结构**:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "rows": [
+      {
+        "tx_hash": "5x3kL...",
+        "caller": "Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY",
+        "token_address": "xxx...pump",
+        "symbol": "TOKEN",
+        "event_type": "buy",
+        "amount_in": "11904761",
+        "amount_out": "98765432",
+        "price_usd": "0.00123",
+        "created_time": 1775909030,
+        "chain": 3
+      }
+    ],
+    "total": 256
+  }
+}
+```
+
+
+
+---
+
+## 错误码说明
+
+| 错误码 | 含义 |
+|------|---------|
+| `200` | 成功 |
+| `400` / 非 200 | 业务错误，请查看 `msg` 字段 |
+| `"Invalid or disabled API Key"` | API Key 无效或已禁用 |
+| `"Quota insufficient"` | Credit 不足，请充值 |
+| `"Credits per minute exceeded"` | 触发限速，请降低请求频率 |
+| `"Unknown skillCode"` | 路径中的 `{skillCode}` 无效 |
+| `"get_pool_list requires tokenAddress or poolAddress"` | 缺少必填参数 |
+
+## 快速接入流程
+
+1. 登录 UniEarn 并获取 `logearn_token`
+2. 调用 `POST /open/api/v1/keys` 创建 API Key，获得 `sk_xxx`
+3. 调用 `POST /open/api/v1/recharge` 充值 Credit（最少 100,000）
+4. 将 `sk_xxx` 作为 `X-Api-Key` 请求头调用任意技能
+5. 通过 `GET /open/api/v1/quota` 和 `GET /open/api/v1/stats` 监控用量
+
+---
+
+## 数据对象说明
+
+> 以下对象结构被多个 Skill 共用（`get_all_signal` / `get_hot_list` / `get_token_signal`）。
+
+---
+
+### 包含信号数据的 Token 对象（Signal Token）
+
+#### 基础信息
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `token_address` | `string` | Token 合约地址 |
+| `token_name` | `string` | Token 全称 |
+| `symbol` | `string` | Token 符号 |
+| `chain` | `integer` | 链 ID（3=Solana，56=BSC） |
+| `decimals` | `integer` | Token 精度 |
+| `total_supply` | `float` | 总供应量（已规范化） |
+| `platform` | `string` | 发行平台标识（如 `6EF8rrecthR5...`=Pump.fun，`binance_four.meme`=Four.meme） |
+| `platform_name` | `string` | 平台显示名称（如 `Pump`、`Binance Four`） |
+| `platform_icon` | `string` | 平台图标相对路径 |
+| `main_pool_address` | `string` | 主要流动性池地址 |
+| `swap_begin_time` | `float` | 首笔交易时间（Unix 秒） |
+| `launch_time` | `integer` | 项目上线时间（Unix 秒，0 表示未知） |
+| `launch_time_duration` | `integer` | 上线至今时长（秒） |
+
+#### 价格 / 市值
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `price_now` | `float` | 当前价格（原生币计价） |
+| `mcap` | `float` | 当前市值（USD） |
+| `current_mcap` | `float` | 同 `mcap`，实时市值 |
+| `fdv` | `float` | 完全稀释估值（USD） |
+| `pool_liquidity` | `float` | 主池流动性（USD） |
+| `price_change_5m` | `float` | 5 分钟涨跌幅（%） |
+| `price_change_1h` | `float` | 1 小时涨跌幅（%） |
+| `price_change_6h` | `float` | 6 小时涨跌幅（%） |
+| `price_change_1d` | `float` | 24 小时涨跌幅（%） |
+| `progress` | `float` | 平台募资进度（%，如 Pump.fun bonding curve） |
+
+#### 交易量 / 活跃度
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `buy_tx_count_d1` | `integer` | 24h 买入笔数 |
+| `sell_tx_count_d1` | `integer` | 24h 卖出笔数 |
+| `buyer_count_d1` | `integer` | 24h 买入地址数 |
+| `seller_count_d1` | `integer` | 24h 卖出地址数 |
+| `buy_wcoin_amount_d1` | `float` | 24h 买入原生币总量 |
+| `sell_wcoin_amount_d1` | `float` | 24h 卖出原生币总量 |
+| `buy_wcoin_amount_h1` | `float` | 1h 买入原生币总量 |
+| `buy_wcoin_amount_m5` | `float` | 5m 买入原生币总量 |
+| `smart_money_address_buy_count_d1` | `integer` | 24h 聪明钱买入地址数 |
+| `smart_money_address_sell_count_d1` | `integer` | 24h 聪明钱卖出地址数 |
+
+#### 信号摘要
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `signal_best_type` | `string` | 最优信号类型（`whale` / `v_breakout_volume` / `continue_breakout_volume` / `breakout_volume_10x`） |
+| `signal_max_ratio` | `float` | 最优信号最大涨幅（%） |
+| `signal_max_mcap` | `float` | 最优信号最高市值（USD） |
+| `signal_max_time` | `float` | 最高点时间（Unix 秒） |
+| `signal_open_mcap` | `float` | 信号发出时市值（USD） |
+| `signal_open_time` | `float` | 信号发出时间（Unix 秒） |
+| `signal_count_d1` | `integer` | 24h 信号触发次数 |
+| `last_traded` | `float` | 最新信号时间（Unix 秒） |
+| `max_up_ratio` | `float` | 历史最大涨幅（%，从最低点到最高点） |
+| `max_up_mcap` | `float` | 历史最高市值（USD） |
+| `max_up_mcap_time` | `float` | 历史最高市值时间（Unix 秒） |
+| `max_up_duration` | `float` | 信号到最高点时长（秒） |
+| `ai_max_up_ratio` | `float\|null` | AI 预测最大涨幅（%） |
+| `ai_max_up_ratio_mcap` | `float` | AI 预测最高市值（USD） |
+| `ai_max_price_time` | `integer` | AI 预测最高价时间（Unix 秒） |
+
+#### 热度评分
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `hot` | `string` | 热度标签（空字符串表示无热度） |
+| `hot_index` | `integer` | 热度分值（0 = 不热） |
+| `m5_featured_index` | `float` | 5 分钟精选评分（负值表示不在精选） |
+| `h1_featured_index` | `float` | 1 小时精选评分（负值表示不在精选） |
+
+#### 标签 / 安全
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `is_fake` | `boolean` | 是否仿盘（`is_fake_pump \|\| is_fake_four \|\| is_fake_bonk`） |
+| `is_fake_pump` | `boolean` | 是否仿 Pump.fun 盘 |
+| `is_fake_four` | `boolean` | 是否仿 Four.meme 盘 |
+| `is_fake_bonk` | `boolean` | 是否仿 Bonk 盘 |
+| `is_trench_token` | `boolean` | 是否为 Trench 类型（平台发行早期小市值） |
+| `is_meteora` | `boolean` | 是否在 Meteora 平台 |
+| `is_scam_token` | `boolean\|null` | 是否为诈骗 Token（null = 未检测） |
+| `is_honey` | `boolean\|null` | 是否为貔貅盘（null = 未检测） |
+| `is_diamond_token` | `boolean\|null` | 是否为钻石筹码 Token |
+| `is_error_market_token` | `boolean\|null` | 是否存在异常市场行为 |
+| `creator_address` | `string` | 创建者地址 |
+| `creator_tag` | `array` | 创建者标签列表 |
+| `total_record` | `integer` | 创建者历史发币数 |
+
+---
+
+### all_signals_list 信号列表
+
+以信号类型为 key，每个 key 对应一个信号条目数组。
+
+| Key | 说明 |
+|-----|------|
+| `whale_list` | 巨鲸共振信号 |
+| `v_breakout_volume_list` | V 形量能突破信号 |
+| `continue_breakout_volume_list` | 持续量能突破信号 |
+| `breakout_volume_10x_list` | 10 倍量能突破信号 |
+
+#### 信号条目通用字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `type` | `string` | 信号类型标识 |
+| `signalTime` | `float` | 信号触发时间（Unix 秒） |
+| `token_address` | `string` | Token 合约地址 |
+| `symbol` | `string` | Token 符号 |
+| `chain` | `integer` | 链 ID |
+| `decimals` | `integer` | Token 精度 |
+| `total_supply` | `float` | 总供应量（已规范化） |
+| `created_time` | `integer` | 记录入库时间（Unix 秒） |
+| `swap_begin_time` | `float` | 首笔交易时间（Unix 秒） |
+| `current_price` | `float` | 信号发出时价格 |
+| `current_price_time` | `integer` | 当前价时间 |
+
+#### v_breakout_volume / continue_breakout_volume 专有字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `fibon_break1` ~ `fibon_break4` | `float` | 斐波那契突破位市值（USD） |
+| `fibon_break1_time` ~ `fibon_break4_time` | `integer` | 对应突破时间（Unix 秒） |
+| `top_price` / `top_price_mcap` / `top_price_time` | `float` / `float` / `integer` | 区间最高价及对应市值、时间 |
+| `low_price` / `low_price_mcap` / `low_price_time` | `float` / `float` / `integer` | 区间最低价及对应市值、时间 |
+| `max_price` / `max_price_time` | `float` / `integer` | 信号后最高价及时间 |
+| `max_up_mcap` | `float` | 信号后最高市值（USD） |
+| `current_breakout_ratio` | `float` | 当前突破幅度 |
+| `price_rise_ratio` | `float` | 价格上涨幅度 |
+| `n_pattern_confirmed` | `boolean` | N 形态是否确认 |
+| `n_pattern_retracement` | `float` | N 形态回撤比例 |
+
+---
+
+### all_signals_max_ratio 最优信号摘要
+
+以信号类型为 key，记录该 Token 在该类型下的最优信号表现。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `type` | `string` | 信号类型 |
+| `open_mcap` | `float` | 信号开仓市值（USD） |
+| `open_time` | `float` | 信号开仓时间（Unix 秒） |
+| `max_mcap` | `float` | 信号后最高市值（USD） |
+| `max_ratio` | `float` | 最大涨幅（%，从 `open_mcap` 到 `max_mcap`） |
+| `max_time` | `float` | 最高点时间（Unix 秒） |
+
+---
+
+### off_meta Token 元数据
+
+平台发行时的社交 / 媒体信息，不同平台字段可能为空对象 `{}`。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `description` | `string` | 项目描述 |
+| `image` | `string` | Token 图标 URL |
+| `launchTime` | `integer` | 上线时间（毫秒时间戳） |
+| `twitter` | `string` | Twitter / X 链接 |
+| `website` | `string` | 官网链接 |
+
+---
+
+### tag_users_holding_percent 持仓地址分布
+
+各类型地址当前持仓占比（%），总和不一定为 100。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `smart_volume` | `float` | 聪明钱地址持仓占比 |
+| `whale_volume` | `float` | 巨鲸地址持仓占比 |
+| `new_volume` | `float` | 新地址持仓占比 |
+| `old_volume` | `float` | 老地址持仓占比 |
+| `frequent_volume` | `float` | 高频交易地址持仓占比 |
+| `amm_volume` | `float` | AMM / 做市商地址持仓占比 |
+| `exchange_volume` | `float` | 交易所地址持仓占比 |
+| `scam_volume` | `float` | 诈骗地址持仓占比 |
+| `shit_volume` | `float` | 垃圾地址持仓占比 |
