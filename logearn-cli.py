@@ -41,26 +41,24 @@ LogEarn CLI  (Python 3.7+  |  env: LOGEARN_API_KEY)
 Usage: python logearn-cli.py <command> [options]
 
 Data:
-  log-get-24h-signals   24小时所有信号     [--chain 3,56]
-  log-get-hot           热门榜单       [--chain 3,56] [--group 5m|1h]
-  log-get-token-info    Token详情      --token <addr> [--chain 3]
-  log-get-token-signal  历史AI信号     --token <addr> [--chain 3]
-  log-get-kline         K线数据        --token <addr> [--chain 3] [--interval 900] [--size 96] [--end <unix>]
-  log-get-balance       Coin余额       --address <wallet> [--chain 3]
+  log-get-24h-signals   查询24小时内所有【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】信号以及相关代币   [--chain 3,56]
+  log-get-hot           查询五分钟/1小时热门代币榜单         [--chain 3,56] [--group 5m|1h]
+  log-get-token-info    查询代币详情，包括八大实时持仓指标     --token <addr> [--chain 3]
+  log-get-token-signal  查询某一个代币所有历史信号，包括【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】    --token <addr> [--chain 3]
+  log-get-kline         获取代币的历史K线数据             --token <addr> [--chain 3] [--interval 900] [--size 96] [--end <unix>]
+  log-get-balance       查询所有交易账号余额              --address <wallet> [--chain 3]
 
-  log-get-positions     仓位查询       --address <wallet> [--size 20] [--page 0] [--sort field] [--dir asc|desc]
-  log-get-trade-logs    交易明细       --address <wallet> [--chain 3] [--size 100] [--page 0]
-  log-get-limit-orders  限价单列表     --address <wallet> [--status -1|0|1|2]
+  log-get-positions     所有交易账户仓位查询              --address <wallet> [--size 20] [--page 0] [--sort field] [--dir asc|desc]
+  log-get-trade-logs    查询所有交易明细                --address <wallet> [--chain 3] [--size 100] [--page 0]
+  log-get-limit-orders  查询所有限价单                  --address <wallet> [--status -1|0|1|2]
 
 Trade  ⚠️ real funds:
-  log-swap-solana       Solana买卖     --caller <wallet> --event buy|sell --action '<json>'
-  log-swap-bsc          BSC买卖        --caller <wallet> --event buy|sell --action '<json>'
-  log-limit-order       挂限价单       --caller <wallet> --token <addr> --action '<json>' [--chain 3] [--event 1|2]
+  log-swap-solana       Solana 买卖                    --caller <wallet> --event buy|sell --action '<json>'
+  log-swap-bsc          BSC 买卖                       --caller <wallet> --event buy|sell --action '<json>'
+  log-limit-order       挂限价单                       --caller <wallet> --token <addr> --action '<json>' [--chain 3] [--event 1|2]
 
 Account:
   log-quota             配额余额
-  log-stats             调用统计
-  log-keys              API Key 列表
 """.strip()
 
 
@@ -203,14 +201,6 @@ def main():
     elif cmd == 'log-quota':
         res = api.get_quota()
         print(json.dumps(helpers.unwrap(res, 'quota'), indent=2, ensure_ascii=False))
-
-    elif cmd == 'log-stats':
-        res = api.get_stats()
-        print(json.dumps(helpers.unwrap(res, 'stats'), indent=2, ensure_ascii=False))
-
-    elif cmd == 'log-keys':
-        res = api.get_keys()
-        print(json.dumps(helpers.unwrap(res, 'keys'), indent=2, ensure_ascii=False))
 
     else:
         print(f'Unknown command: {cmd}\n', file=sys.stderr)

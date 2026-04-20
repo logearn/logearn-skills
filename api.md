@@ -1,6 +1,6 @@
 # LogEarn Open API
 
-通过 LogEarn Open API 可以访问 LogEarn 任何专业的分析数据，以及信号。同时使用 LogEarn Open API 可以享受全网最低低至 0.1% 的优惠费率。
+LogEarn 作为专注筹码分析的交易平台，提供了动态筹码分析，实时资金流向指标，早期精选金狗信号等丰富专业功能， 大大的提升了行业用户交易的胜率。本 Open API 旨在帮助开发者和交易者更好地利用这些专业数据。将自己的 AI Agent 打造成最聪明的交易 Agent。
 
 ## 前置条件
 
@@ -14,12 +14,12 @@
 
 | 模式 | 适用接口 | 方式 |
 |------|-----------|-----|
-| API Key | 所有 `/call/*`、`/quota`、`/stats`、`/keys`（GET/DELETE） | 请求头 `X-Api-Key: sk_xxx` |
+| API Key | 所有 `/call/*`（GET/DELETE） | 请求头 `X-Api-Key: sk_xxx` |
 
 ## 计费说明
 
 - 大部分 API 不消耗 Credits，只有频率限制；部分高耗资源的 API 会有 Credits 调用限制，具体消耗情况参考下面表格
-- **限速**：每个 API Key 独立限速，默认上限 **600 credits/min**, 若需要调高，联系客服 [@chickenbro_logearn](href="https://t.me/chickenbro_logearn)
+- **限速**：每个 API Key 独立限速，默认上限 **600 credits/min**, 若需要调高，联系客服 [@chickenbro_logearn](https://t.me/chickenbro_logearn)
 - **充值**：0.5 SOL = 100,000 credits，最低充值 100,000 credits
 - 所有 API Keys 共享所有的 Credits
 
@@ -43,18 +43,18 @@
 
 | skillCode | 名称 | 消耗            | 必填参数 |
 |-----------|------|---------------|---------|
-| `get_all_signal` | 查询根据【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】信号形成的信号榜单 | **5 credits** | — |
+| `get_all_signal` | 查询24小时内所有【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】信号以及相关代币 | **5 credits** | — |
 | `get_hot_list` | 查询五分钟/1小时热门代币榜单 | 3 credit      | — |
-| `get_token_signal` | 查询某一个Token 所有历史信号，包括【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】 | 2 credit      | `index_token_address`,`chain` |
-| `get_kline_list` | 查询K线数据| 1 credit      | `base`,`chain` |
-| `get_token_info` | 查询 Token 详情，包括8大实时持仓指标 | 1 credit      | `params.base`, `chain` |
-| `get_coin_balance` | 查询账号 Coin余额 | **免费**（1次/s）| `address` |
-| `get_wallet_positions` | 查询仓位 | **免费**（1次/s）  | `address` |
-| `solana_swap` | Solana交易 | **免费**（1次/s）  | `caller`、`eventType`、`action` |
-| `bsc_swap` | BSC交易 | **免费**（1次/s）  | `caller`、`eventType`、`action` |
+| `get_token_signal` | 查询某一个代币所有历史信号，包括【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】 | 2 credit      | `index_token_address`,`chain` |
+| `get_kline_list` | 获取代币的历史K线数据| 1 credit      | `base`,`chain` |
+| `get_token_info` | 查询代币详情，包括八大实时持仓指标  | 1 credit      | `params.base`, `chain` |
+| `get_coin_balance` | 查询所有交易账号余额 | **免费**（1次/s）| `address` |
+| `get_wallet_positions` | 所有交易账户仓位查询 | **免费**（1次/s）  | `address` |
+| `solana_swap` | Solana 交易 | **免费**（1次/s）  | `caller`、`eventType`、`action` |
+| `bsc_swap` | BSC 交易 | **免费**（1次/s）  | `caller`、`eventType`、`action` |
 | `limit_order` | 挂限价单 | **免费**（1次/s）  | `caller`、`tokenAddress`、`action` |
-| `get_limit_orders` | 查询限价单 | **免费**（1次/s）  | `address` |
-| `get_trade_logs` | 交易明细 | **免费**（1次/s）  | `address` |
+| `get_limit_orders` | 查询所有限价单 | **免费**（1次/s）  | `address` |
+| `get_trade_logs` | 查询所有交易明细 | **免费**（1次/s）  | `address` |
 
 ---
 
@@ -68,7 +68,7 @@
 
 | 参数 | 说明 |
 |------|------|
-| `skillCode` | 技能标识，取值见下方技能列表 |
+| `skillCode` | 技能标识，取值见上面技能列表 |
 
 **通用响应结构**:
 
@@ -91,9 +91,9 @@
 ```
 
 
-#### Skill: `get_all_signal` — 查询根据【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】信号形成的信号榜单
+#### Skill: `get_all_signal` — 查询24小时内所有【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】信号以及相关代币
 
-LogEarn 独家核心高质量信号榜单。按照 Token 聚合后，返回每个 Token 24 小时范围内的，所有【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】信号，根据返回的结果，可以对 List 进行各种筛选排序，以便在早期就能筛选出潜力的大金额。涵盖 Solana 和 BSC。
+该技能返回 24 小时范围内所有【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】信号以及相关的代币，根据返回的结果，可以对信号或者代币进行各种筛选排序，如信号相关参数的筛选，如信号出现的顺序进行编排后筛选等。以便在早期就能筛选出潜力大的金狗。涵盖 Solana 和 BSC。
 
 **请求参数**:
 
@@ -127,9 +127,9 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 
 ---
 
-#### Skill: `get_hot_list` — 查询五分钟/1小时热门代币榜单 
+#### Skill: `get_hot_list` — 查询【五分钟】/【1小时】热门代币榜单 
 
-LogEarn 根据多纬度算法，准确的计算了，当前市场最有热度的代币。形成了榜单。方便查询。
+LogEarn 根据多因子聚合，对潜力热门金狗，或者正处于热门交易的金狗进行了热度指数的量化。该技能实时返回不同时间粒度的热门榜单
 
 **请求参数**:
 
@@ -161,20 +161,21 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 
 ---
 
-#### Skill: `get_token_info` — 查询 Token 详情，包括8大实时持仓指标 
+#### Skill: `get_token_info` — 查询代币详情，包括八大实时持仓指标 
 
-除了查询 Token 的一些基本信息以外，查询结果包含，8大实时持仓指标。他们分别是：
+除了查询代币的一些基本信息以外，查询结果还包含，八大实时持仓指标。 通过这些持仓分布，能非常方便的排查当前代币是不是高风险。这些实时持仓指标他们分别是：
 
-| `smart_volume` | `float` | 聪明钱地址持仓占比 |
-| `whale_volume` | `float` | 巨鲸地址持仓占比 |
-| `new_volume` | `float` | 新地址持仓占比 |
-| `old_volume` | `float` | 老地址持仓占比 |
-| `frequent_volume` | `float` | 高频交易地址持仓占比 |
-| `amm_volume` | `float` | AMM / 做市商地址持仓占比 |
-| `exchange_volume` | `float` | 交易所地址持仓占比 |
-| `scam_volume` | `float` | 诈骗地址持仓占比 |
-| `shit_volume` | `float` | 垃圾地址持仓占比 |
-
+| 字段 | 说明 |
+|------|------|
+| `smart_volume` | 聪明钱地址持仓占比 |
+| `whale_volume` | 巨鲸地址持仓占比 |
+| `new_volume` | 新地址持仓占比 |
+| `old_volume` | 老地址持仓占比 |
+| `frequent_volume` | 高频交易地址持仓占比 |
+| `amm_volume` | AMM 做市商地址持仓占比 |
+| `exchange_volume` | 交易所地址持仓占比 |
+| `scam_volume` | 诈骗地址持仓占比 |
+| `shit_volume` | 垃圾地址持仓占比 |
 
 **请求参数**:
 
@@ -201,9 +202,9 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 
 ---
 
-#### Skill: `get_token_signal` — 查询某一个Token 所有历史信号，包括【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】
+#### Skill: `get_token_signal` — 查询某一个代币所有历史信号，包括【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】
 
-其他接口默认情况下返回的都是 24小时范围的信号，但是本接口就是查询所有的 Token 历史信号。方便我们做历史回测。比如过去一个月内，有4次以上的苏醒 Token 是不是真苏醒，此时，就可以使用历史数据去回溯了。
+本技能查询代币所有历史信号。方便我们做历史回测。比如当我们收到苏醒信号时，我们可以查看一下该代币的历史苏醒信号，结合起来判断，本次苏醒信号是否有交易价值。
 
 **请求参数**:
 
@@ -216,7 +217,7 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 **请求示例**:
 
 ```bash
-# 查询某 Token 的所有历史 AI 信号, 指定链（（SOLANA）
+# 查询某 Token 的所有历史 AI 信号，指定链（SOLANA）
 curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_token_signal" \
   -H "X-Api-Key: $LOGEARN_API_KEY" \
   -H "Content-Type: application/json" \
@@ -231,9 +232,9 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 
 ---
 
-#### Skill: `get_kline_list` — K线数据
+#### Skill: `get_kline_list` — 获取代币的历史K线数据
 
-获取 Token K线（蜡烛图）数据，支持多周期。`base` 为必填。如果要翻页，使用 作为 endTime 游标向钱翻页即可
+获取代币 K线（蜡烛图）数据，支持多周期。`base` 为必填。如果要翻页，使用 `endTime` 作为游标向前翻页即可
 
 **请求参数**:
 
@@ -295,15 +296,15 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
   }
 }
 ```
-带 **U** 结尾，表示以当时的U计价的价格，否则表示的时候以对应链的 Native Token 计价的价格。
+带 **U** 结尾字段，表示以当时的U计价的价格，否则表示的时候以对应链的 Native Token 计价的价格。
 
 
 
 ---
 
-#### Skill: `get_coin_balance` — 账号Coin余额
+#### Skill: `get_coin_balance` — 查询所有交易账号余额
 
-查询当前登录账户在 Solana 或 BSC 链上对应的的原生币余额（SOL / BNB）。直接读取链上 RPC，实时返回。默认返回所有链上面的所有地址余额，如果指定了 address 和 chain，则只返回指定地址的余额。
+查询当前登录账户在 Solana 或 BSC 链上对应的原生币余额（SOL / BNB）。直接读取链上 RPC，实时返回。默认返回全链账户地址余额，如果指定了 address 和 chain，则只返回指定地址的余额。
 
 **请求参数**:
 
@@ -348,14 +349,14 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 
 ---
 
-#### Skill: `get_wallet_positions` — 仓位查询
+#### Skill: `get_wallet_positions` — 所有交易账户仓位查询
 
-查询指定钱包地址当前持仓的 Token 列表，支持多地址、分页、排序。`address` 为必填。默认返回所有钱包的仓位情况，如果指定了 address 和 chain，则只返回指定地址的仓位情况。
+查询指定钱包地址当前持仓的代币列表，支持多地址、分页、排序。`address` 为必填。默认返回所有钱包的仓位情况，如果指定了 address 和 chain，则只返回指定地址的仓位情况。
 **请求参数**:
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `address` | `string` | 否 | — | 包地址，多地址用英文逗号分隔（支持 Solana / EVM 混合） |
+| `address` | `string` | 否 | — | 钱包地址，多地址用英文逗号分隔（支持 Solana / EVM 混合） |
 | `chain` | `integer` | 否 | — | 链 ID：3=Solana，56=BSC |
 | `page_size` | `integer` | 否 | `20` | 每页条数 |
 | `page_num` | `integer` | 否 | `0` | 页码（从 0 开始） |
@@ -474,7 +475,7 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 
 ---
 
-#### Skill: `get_limit_orders` — 查询限价单
+#### Skill: `get_limit_orders` — 查询所有限价单
 
 查询指定钱包地址的限价单列表，支持按状态筛选。默认返回所有钱包的限价单，如果指定了 address 和 chain，则只返回指定地址的限价单。
 
@@ -529,15 +530,15 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 
 ---
 
-#### Skill: `get_trade_logs` — 交易明细
+#### Skill: `get_trade_logs` — 查询所有交易明细
 
-查询指定钉包的链上交易流水（买卖记录），支持 Solana 和 BSC 。默认返回所有钱包的交易明细，如果指定了 address 和 chain，则只返回指定地址的交易明细。
+查询指定钱包的链上交易流水（买卖记录），支持 Solana 和 BSC 。默认返回所有钱包的交易明细，如果指定了 address 和 chain，则只返回指定地址的交易明细。
 
 **请求参数**:
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `address` | `string` | 否  | — | 钉包地址，多地址用英文逗号分隔（Solana / EVM 可混合） |
+| `address` | `string` | 否  | — | 钱包地址，多地址用英文逗号分隔（Solana / EVM 可混合） |
 | `chain` | `string` | 否 | - | 链 ID：`"3"`=Solana，`"56"`=BSC（`protocol` 由服务端自动推导） |
 | `wcoin` | `string` | 否 | chain=3 时自动填 SOL 地址 | 原生币合约地址 |
 | `page_size` | `integer` | 否 | `100` | 每页条数 |
@@ -546,13 +547,13 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 **请求示例**:
 
 ```bash
-# 查询 Solana 钉包交易明细（默认参数）
+# 查询 Solana 钱包交易明细（默认参数）
 curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_trade_logs" \
   -H "X-Api-Key: $LOGEARN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY"}'
 
-# 多地址查询（Solana + BSC 钉包交易合并）
+# 多地址查询（Solana + BSC 钱包交易合并）
 curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_trade_logs" \
   -H "X-Api-Key: $LOGEARN_API_KEY" \
   -H "Content-Type: application/json" \
@@ -563,7 +564,7 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
     "page_num": 0
   }'
 
-# 查询 BSC 钉包交易明细（protocol 由 chain 自动推导，无需传入）
+# 查询 BSC 钱包交易明细（protocol 由 chain 自动推导，无需传入）
 curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_trade_logs" \
   -H "X-Api-Key: $LOGEARN_API_KEY" \
   -H "Content-Type: application/json" \
@@ -741,11 +742,11 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `limitNumber` | `float` | 触发条件目标值（币本位价格，已处理精度）|
+| `limitNumber` | `float` | 触发条件目标值（币本位价格或者市值，已处理精度）|
 | `limitType` | `integer` | 参考类型：`1` = 价格触发，`2` = 市值触发 |
 | `direction` | `integer` | 触发方向：`1` = 向上触发（买单：等待价格下跌到目标价再买），`2` = 向下触发（卖单：等待价格上涨到目标价再卖） |
 
-> **方向说明**：买单通常等价格跌到目标位（`direction=1`，价格从上方穿越 `limitNumber`）；卖单通常等价格涨到目标位（`direction=2`，价格从下方穿越 `limitNumber`）。若 `percent > 0`（目标价高于当前价）用 `direction=1`，`percent < 0` 用 `direction=2`。
+> **方向说明**：买单通常等价格跌到目标位（`direction=1`，价格从上方穿越 `limitNumber`）；卖单通常等价格涨到目标位（`direction=2`，价格从下方穿越 `limitNumber`）。
 
 **`action` 止盈止损字段**（可选，与 swap 接口完全相同）:
 
@@ -812,7 +813,7 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 
 ## 快速接入流程
 
-1. 登录 UniEarn 并获取 `logearn_token`
+1. 登录 LogEarn 并获取 `logearn_token`
 2. 调用 `POST /open/api/v1/keys` 创建 API Key，获得 `sk_xxx`
 3. 调用 `POST /open/api/v1/recharge` 充值 Credit（最少 100,000）
 4. 将 `sk_xxx` 作为 `X-Api-Key` 请求头调用任意技能
@@ -1048,9 +1049,7 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 | `ai_max_up_ratio_mcap` | `float` | AI 狙击信号发出后最高市值（USD） |
 | `ai_max_price_time` | `integer` | AI 狙击信号发出后最高价时间（Unix 秒） |
 
-### all_signals_max_ratio 没中信号的收益数据摘要
-
-以信号类型为 key，记录该 Token 在该类型下的最优信号表现。
+### 以信号类型为 key，记录该 Token 在该类型下的最优信号表现。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
