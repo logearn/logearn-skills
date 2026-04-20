@@ -52,7 +52,7 @@ Data:
   log-get-trade-logs    查询所有交易明细                --address <wallet> [--chain 3] [--size 100] [--page 0]
   log-get-limit-orders  查询所有限价单                  --address <wallet> [--status -1|0|1|2]
 
-Trade  ⚠️ real funds:
+Trade  real funds:
   log-swap-solana       Solana 买卖                    --caller <wallet> --event buy|sell --action '<json>'
   log-swap-bsc          BSC 买卖                       --caller <wallet> --event buy|sell --action '<json>'
   log-limit-order       挂限价单                       --caller <wallet> --token <addr> --action '<json>' [--chain 3] [--event 1|2]

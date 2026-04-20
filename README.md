@@ -32,9 +32,9 @@ python logearn-cli.py <命令> [参数]
 | `log-get-positions` | 持仓列表（免费） | `--address` |
 | `log-get-trade-logs` | 交易明细（免费） | `--address` |
 | `log-get-limit-orders` | 限价单列表（免费） | `--address` |
-| `log-swap-solana` | Solana 买卖 ⚠️（免费） | `--caller` `--event` `--action` |
-| `log-swap-bsc` | BSC 买卖 ⚠️（免费） | `--caller` `--event` `--action` |
-| `log-limit-order` | 挂限价单 ⚠️（免费） | `--caller` `--token` `--action` |
+| `log-swap-solana` | Solana 买卖 （免费） | `--caller` `--event` `--action` |
+| `log-swap-bsc` | BSC 买卖 （免费） | `--caller` `--event` `--action` |
+| `log-limit-order` | 挂限价单 （免费） | `--caller` `--token` `--action` |
 | `log-quota` | 查询 Credit 余额（免费） | — |
 
 ---

@@ -67,7 +67,7 @@ log-get-trade-logs     交易明细                    --address <wallet> [--cha
 log-get-limit-orders   限价单列表                  --address <wallet> [--status -1|0|1|2]
 ```
 
-### 链上交易 ⚠️ 真实资金
+### 链上交易
 
 ```
 log-swap-solana        Solana 买卖                 --caller <wallet> --event buy|sell --action '<json>'
@@ -134,7 +134,7 @@ python logearn-cli.py log-get-token-info \
 | `frequent_volume` | 高频交易占比 | — |
 | `amm_volume` | AMM 做市商占比 | — |
 | `exchange_volume` | 交易所占比 | — |
-| `scam_volume` | 诈骗地址占比 | 高则高风险 ⚠️ |
+| `scam_volume` | 诈骗地址占比 | 高则高风险  |
 
 ---
 
@@ -258,7 +258,7 @@ python logearn-cli.py log-swap-solana \
 
 **触发词**：「卖出 50%」「卖掉 30%」「sell」「减仓」
 
-> ⚠️ 必须先查持仓获取 `hold_amount` 和 `decimals`，再计算 `amountIn`
+>  必须先查持仓获取 `hold_amount` 和 `decimals`，再计算 `amountIn`
 
 ```bash
 # Step 1：查持仓，获取 hold_amount 和 decimals
@@ -361,7 +361,7 @@ python logearn-cli.py log-quota
 ## 注意事项
 
 1. **链 ID 必须明确**：`log-get-token-info`、`log-get-token-signal`、`log-get-kline`、`log-get-balance` 均要求 `--chain` 参数。
-2. **交易使用真实资金** ⚠️：执行 `log-swap-*` 和 `log-limit-order` 前，请向用户确认钱包地址和交易金额。
+2. **交易使用真实资金** ：执行 `log-swap-*` 和 `log-limit-order` 前，请向用户确认钱包地址和交易金额。
 3. **卖出必须先查持仓**：按比例卖出必须先调用 `log-get-positions` 获取 `hold_amount` 与 `decimals`，再计算 `amountIn`。
 4. **Credit 消耗**：`log-get-24h-signals` 消耗 5 credits/次，`log-get-hot` 消耗 3 credits/次，注意频率控制。
 5. **地址格式**：Solana 地址为 Base58 格式；BSC 地址为 `0x...` 格式，混用时需指定 `--chain`。

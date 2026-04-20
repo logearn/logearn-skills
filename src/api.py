@@ -131,7 +131,7 @@ def get_limit_orders(address: str, status: int = None, page_size: int = None,
 
 
 def solana_swap(caller: str, event_type: str, action: dict) -> dict:
-    """Solana交易 ⚠️ real funds"""
+    """Solana交易  real funds"""
     action['timestamp'] = int(time.time() * 1000)
     action['key'] = event_type
     return call_skill('solana_swap', {'caller': caller, 'eventType': event_type,
@@ -139,7 +139,7 @@ def solana_swap(caller: str, event_type: str, action: dict) -> dict:
 
 
 def bsc_swap(caller: str, event_type: str, action: dict) -> dict:
-    """BSC交易 ⚠️ real funds"""
+    """BSC交易  real funds"""
     action['timestamp'] = int(time.time() * 1000)
     action['key'] = event_type
     return call_skill('bsc_swap', {'caller': caller, 'eventType': event_type,
@@ -149,7 +149,7 @@ def bsc_swap(caller: str, event_type: str, action: dict) -> dict:
 def limit_order(caller: str, token_address: str, action: dict,
                 chain_id: int = None, event_type: int = None,
                 expired_at: int = None) -> dict:
-    """挂限价单 ⚠️ real funds"""
+    """挂限价单  real funds"""
     body = {'caller': caller, 'tokenAddress': token_address, 'action': action}
     if chain_id is not None:   body['chainId']   = chain_id
     if event_type is not None: body['eventType'] = event_type
