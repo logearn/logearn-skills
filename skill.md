@@ -1,241 +1,367 @@
 ---
 name: LogEarn-skills
 description: >-
-  当用户询问 "精选信号"、"持仓指标"、"热门Token"、"热门榜单"、
-  "k-line"、"K线"、"candlestick"、"token info"、
-  "token details"、"Token详情"、"get kline"、"查K线"、"查信号"、"查热门"，
-  或提及通过 LogEarn Open API 查询 Solana / BSC 链上数据时，应使用本技能。
-  通过 LogEarn Skill Open API 实现链上数据查询和 AI 信号获取。
+  当用户提到以下关键词时，使用本技能：
+  "logearn"、"精选信号"、"热门榜单"、"热门代币"、"回撤反弹"、"蓝筹共振"、"苏醒信号"、
+  "AI信号"、"持仓指标"、"筹码分析"、"K线"、"k-line"、"查信号"、"查热门"、"查仓位"、
+  "钱包余额"、"链上交易"、"买入"、"卖出"、"限价单"、"交易日志"、"API额度"、
+  或用户明确要求查询 Solana / BSC 链上数据、执行链上交易时，应使用本技能。
 version: 1.0.0
 allowed-tools: Bash, Read, AskUserQuestion
 metadata:
-  openclaw:
-    requires:
-      env: ["LOGEARN_API_KEY"]
-      bins: ["python3"]
-    primaryEnv: "LOGEARN_API_KEY"
-    emoji: "📡"
-    homepage: "https://logearn.com"
+  author: LogEarn
+  tags: [blockchain, trading, signals, solana, bsc, defi]
 ---
 
-# LogEarn Skills
+# LogEarn Skill
 
-On-chain data queries, AI signal access, and trading for Solana and BSC via LogEarn Open API.
+LogEarn 作为专注筹码分析的交易平台，提供了动态筹码分析，实时资金流向指标，早期精选金狗信号等丰富且专业功能， 大大的提升了行业用户交易的胜率。本 Skill 通过 CLI 工具对接 LogEarn Open API, 实现 AI 信号查询、资金流向、筹码分析、热门榜单、K 线数据、钱包管理、链上交易等功能，旨在帮助开发者和交易者更好地利用这些专业数据。将自己的 AI Agent 打造成最聪明的交易 Agent。
 
-## Setup
+## 前置条件
 
-Required environment variable:
-- `LOGEARN_API_KEY` — Your LogEarn API Key (`sk_xxxxxxxx`)
-- `LOGEARN_API_BASE` (optional) — defaults to `https://logearn.com/logearn`
-
-**Runtime**: Python 3.7+ (no dependencies needed, stdlib only)
-
-All commands: `python logearn-cli.py log-<command> [options]`
-
----
-
-## Data Commands
-
-### AI综合信号 — `log-get-24h-signals` (3 credits)
+运行任何命令前，确保环境变量已设置：
 
 ```bash
-# All chains (Solana + BSC)
-python logearn-cli.py log-get-24h-signals
+export LOGEARN_API_KEY="sk_xxxxxxxx"                        # 必填
+export LOGEARN_API_BASE="https://logearn.com/logearn"       # 可选，默认此值
+```
 
-# Solana only
+若 `LOGEARN_API_KEY` 未设置，所有命令均会报错退出。
+
+---
+
+## 信号类型说明
+
+LogEarn 提供四种核心 AI 信号，理解它们有助于正确过滤和解读结果：
+
+| 信号字段名 | 中文名 | 含义 |
+|-----------|--------|------|
+| `continue_breakout_volume` | 早期精选 | 第一次有资金开始流入的金狗，适合早期埋伏 |
+| `v_breakout_volume` | 回撤反弹 | 价格回撤后出现反弹迹象的代币 |
+| `breakout_volume_10x` | 休眠苏醒 | 沉寂后重新活跃、有 10x 潜力的代币 |
+| `whale` | 蓝筹共振 | 蓝筹代币里面的头部赢家在共同买入的代币 |
+
+---
+
+## CLI 命令参考
+
+> CLI 入口：`python logearn-cli.py <命令> [参数]`
+> 链 ID：Solana=`3`，BSC=`56`
+
+### 信号与行情查询
+
+```
+log-get-24h-signals    查询24小时所有AI信号       [--chain 3,56]
+log-get-hot            热门代币榜单               --group 5m|1h  [--chain 3,56]
+log-get-token-info     代币详情+八大持仓指标        --token <addr> --chain <3|56>
+log-get-token-signal   代币历史AI信号              --token <addr> --chain <3|56>
+log-get-kline          历史K线数据                 --token <addr> --chain <3|56> [--interval 900] [--size 96]
+```
+
+### 账户与仓位查询
+
+```
+log-get-balance        钱包余额（SOL/BNB）         --address <wallet> --chain <3|56>
+log-get-positions      持仓列表                    --address <wallet> [--size 20] [--page 0]
+log-get-trade-logs     交易明细                    --address <wallet> [--chain 3|56] [--size 100]
+log-get-limit-orders   限价单列表                  --address <wallet> [--status -1|0|1|2]
+```
+
+### 链上交易 ⚠️ 真实资金
+
+```
+log-swap-solana        Solana 买卖                 --caller <wallet> --event buy|sell --action '<json>'
+log-swap-bsc           BSC 买卖                    --caller <wallet> --event buy|sell --action '<json>'
+log-limit-order        挂限价单                    --caller <wallet> --token <addr> --action '<json>' [--chain 3]
+```
+
+### 账户管理
+
+```
+log-quota              查询 Credit 配额余额
+```
+
+---
+
+## 用户意图 → 命令映射
+
+### 1. 热门榜单
+
+**触发词**：「热门榜单」「热门代币」「5分钟热门」「1小时热门」「top 50」
+
+```bash
+# 5 分钟热门榜（Solana）
+python logearn-cli.py log-get-hot --group 5m --chain 3
+
+# 1 小时热门榜（全链）
+python logearn-cli.py log-get-hot --group 1h --chain 3,56
+```
+
+返回字段：`symbol`、`mcap`、`hot_index`（热度分）、`m5_featured_index`（5分钟精选评分）、`price_change_5m/1h` 等。
+
+---
+
+### 2. 精选信号查询（早期精选）
+
+**触发词**：「精选信号」「早期精选」「过去5分钟精选」「有哪些早期金狗」
+
+```bash
+python logearn-cli.py log-get-24h-signals --chain 3
+```
+
+从返回结果中筛选 `signals` 数组包含 `continue_breakout_volume` 类型的代币，即为早期精选信号。
+
+---
+
+### 3. 代币八大持仓指标
+
+**触发词**：「持仓指标」「筹码分布」「8大指标」「这个代币安不安全」
+
+```bash
+python logearn-cli.py log-get-token-info \
+  --token <token_address> \
+  --chain 3
+```
+
+关键返回字段：
+
+| 字段 | 含义 | 风险参考 |
+|------|------|---------|
+| `smart_volume` | 聪明钱占比 | 越高越好 |
+| `whale_volume` | 巨鲸占比 | 过高需谨慎集中度 |
+| `new_volume` | 新地址占比 | 过高可能是操盘 |
+| `old_volume` | 老地址占比 | 高表示有长期持有者 |
+| `frequent_volume` | 高频交易占比 | — |
+| `amm_volume` | AMM 做市商占比 | — |
+| `exchange_volume` | 交易所占比 | — |
+| `scam_volume` | 诈骗地址占比 | 高则高风险 ⚠️ |
+
+---
+
+### 4. 代币历史 AI 信号
+
+**触发词**：「历史信号」「这个 Token 之前出现过什么信号」「信号回测」
+
+```bash
+python logearn-cli.py log-get-token-signal \
+  --token <token_address> \
+  --chain 3
+```
+
+返回该代币的全部历史信号，可用于判断信号质量与可靠性。
+
+---
+
+### 5. 复合信号筛选（按顺序出现多种信号）
+
+**触发词**：「筛选同时出现了 XX 和 XX 信号的代币」「按顺序出现了精选、回撤、共振信号的代币」
+
+```bash
+# Step 1：获取 24 小时内所有信号
+python logearn-cli.py log-get-24h-signals --chain 3,56
+```
+
+筛选逻辑（伪代码）：
+```python
+target_order = ['continue_breakout_volume', 'v_breakout_volume', 'whale']
+for token in results:
+    types = [s['signal_type'] for s in sorted(token['signals'], key=lambda x: x['signal_time'])]
+    # 判断 target_order 是否作为子序列存在于 types 中
+```
+
+---
+
+### 6. 叙事相关代币筛选
+
+**触发词**：「CZ 相关代币」「何一叙事」「某个人或机构相关的 Token」「按创建时间排列」
+
+```bash
+python logearn-cli.py log-get-24h-signals --chain 3,56
+```
+
+筛选逻辑：在返回结果中，过滤 `token_name` 或 `symbol` , 或者 `off_meta` 里面所有字段包含关键词（如 `CZ`、`YI`、`HE`、`BINANCE` 等）的代币，按 `swap_begin_time` 倒序排列。
+
+---
+
+### 7. 苏醒信号 + 历史回测（苏醒次数 ≥ 2）
+
+**触发词**：「有苏醒信号的代币」「历史上苏醒过 2 次以上的」「休眠苏醒信号筛选」
+
+```bash
+# Step 1：获取 24h 内有苏醒信号的代币
 python logearn-cli.py log-get-24h-signals --chain 3
 
-# BSC only
-python logearn-cli.py log-get-24h-signals --chain 56
+# Step 2：对每个苏醒代币，查询历史信号并统计苏醒次数
+python logearn-cli.py log-get-token-signal \
+  --token <token_address> \
+  --chain 3
 ```
 
-### 热门榜单 — `log-get-hot` (1 credit)
+在历史信号中统计 `signal_type == "breakout_volume_10x"` 的条数，保留 ≥ 2 次的代币。
 
-```bash
-# Default: all chains, recent 5 min
-python logearn-cli.py log-get-hot
+---
 
-# Solana, last 1 hour
-python logearn-cli.py log-get-hot --chain 3 --group 1h
-```
+### 8. 查询钱包余额
 
-`--group`: `5m`=最近5分钟（默认）, `1h`=最近1小时
-
-### K线数据 — `log-get-kline` (2 credits)
-
-```bash
-# Default: 15min interval, last 96 bars
-python logearn-cli.py log-get-kline --token <tokenAddress>
-
-# 1h candles, 48 bars
-python logearn-cli.py log-get-kline --token <tokenAddress> --interval 3600 --size 48
-
-# Custom end time
-python logearn-cli.py log-get-kline --token <tokenAddress> --interval 900 --end 1775883812
-```
-
-`--interval`: `60`=1m, `300`=5m, `900`=15m, `3600`=1h, `86400`=1d
-
-### Token详情 — `log-get-token-info` (1 credit)
-
-```bash
-python logearn-cli.py log-get-token-info --token <tokenAddress>
-
-# BSC token
-python logearn-cli.py log-get-token-info --token <tokenAddress> --chain 56
-```
-
-### Token历史信号 — `log-get-token-signal` (1 credit)
-
-`--chain` 为必填。
+**触发词**：「钱包余额」「SOL 余额」「BNB 余额」「我的账户余额」
 
 ```bash
 # Solana
-python logearn-cli.py log-get-token-signal --token <tokenAddress> --chain 3
+python logearn-cli.py log-get-balance \
+  --address <solana_wallet_address> \
+  --chain 3
 
 # BSC
-python logearn-cli.py log-get-token-signal --token <tokenAddress> --chain 56
-```
-
-### 账号Coin余额 — `log-get-balance` (1 credit)
-
-`--chain` 为必填。
-
-```bash
-# SOL balance (Solana)
-python logearn-cli.py log-get-balance --address <walletAddress> --chain 3
-
-# BNB balance (BSC)
-python logearn-cli.py log-get-balance --address <walletAddress> --chain 56
-```
-
-### 仓位查询 — `log-get-positions` (free, 1/s)
-
-```bash
-# Default
-python logearn-cli.py log-get-positions --address <walletAddress>
-
-# Paginated, sorted by open_position_time desc
-python logearn-cli.py log-get-positions --address <walletAddress> --size 20 --page 0 --sort open_position_time --dir desc
-
-# Multi-address (comma-separated, Solana + EVM mixed)
-python logearn-cli.py log-get-positions --address "<solanaAddr>,<evmAddr>"
-```
-
-### 交易明细 — `log-get-trade-logs` (free, 1/s)
-
-```bash
-# Solana wallet
-python logearn-cli.py log-get-trade-logs --address <walletAddress>
-
-# BSC wallet
-python logearn-cli.py log-get-trade-logs --address <walletAddress> --chain 56
-
-# With pagination
-python logearn-cli.py log-get-trade-logs --address <walletAddress> --size 50 --page 1
-```
-
-### 查询限价单 — `log-get-limit-orders` (free, 1/s)
-
-```bash
-# Pending orders (default)
-python logearn-cli.py log-get-limit-orders --address <walletAddress>
-
-# By status: -1=cancelled, 0=pending, 1=executed, 2=expired
-python logearn-cli.py log-get-limit-orders --address <walletAddress> --status 0
+python logearn-cli.py log-get-balance \
+  --address <evm_wallet_address> \
+  --chain 56
 ```
 
 ---
 
-## Trade Commands ⚠️
+### 9. 查询持仓情况
 
-> **WARNING**: The following commands execute real on-chain transactions using real funds. Operations are irreversible. Always confirm parameters before running.
-
-### Solana交易 — `log-swap-solana` (5 credits)
+**触发词**：「持仓情况」「我现在持有哪些代币」「仓位」「我的仓位」
 
 ```bash
-# Buy
-python logearn-cli.py log-swap-solana \
-  --caller <walletAddress> \
-  --event buy \
-  --action '{"tokenIn":"So11111111111111111111111111111111111111112","tokenOut":"<tokenAddress>","amountIn":"11904761","antiMev":1,"autoMaxFee":0.2,"stopProfit1":100,"stopProfit1Percent":50,"stopLoss1":30,"stopLoss1Percent":100}'
-
-# Sell
-python logearn-cli.py log-swap-solana \
-  --caller <walletAddress> \
-  --event sell \
-  --action '{"tokenIn":"<tokenAddress>","tokenOut":"So11111111111111111111111111111111111111112","amountIn":"<amountRaw>","antiMev":1}'
+python logearn-cli.py log-get-positions --address <wallet_address>
 ```
 
-### BSC交易 — `log-swap-bsc` (5 credits)
-
-```bash
-# Buy
-python logearn-cli.py log-swap-bsc \
-  --caller <evmWalletAddress> \
-  --event buy \
-  --action '{"tokenIn":"0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c","tokenOut":"<tokenAddress>","amountIn":"<amountRaw>","antiMev":1}'
-
-# Sell
-python logearn-cli.py log-swap-bsc \
-  --caller <evmWalletAddress> \
-  --event sell \
-  --action '{"tokenIn":"<tokenAddress>","tokenOut":"0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c","amountIn":"<amountRaw>","antiMev":1}'
-```
-
-### 挂限价单 — `log-limit-order` (free, 1/s)
-
-> Auto-executes when price condition is met.
-
-`limitNumber` = 币本位目标价（已处理精度）；`limitType`: `1`=价格, `2`=市值；`direction`: `1`=向上触发（买单等价格下跌）, `2`=向下触发（卖单等价格上涨）。
-
-```bash
-# Solana limit buy at target price
-python logearn-cli.py log-limit-order \
-  --caller <walletAddress> \
-  --token <tokenAddress> \
-  --chain 3 \
-  --event 1 \
-  --action '{"tokenIn":"So11111111111111111111111111111111111111112","tokenOut":"<tokenAddress>","amountIn":"11904761","limitNumber":0.00013789,"limitType":1,"direction":1,"antiMev":1,"autoMaxFee":0.2}'
-
-# With expiry (unix timestamp)
-python logearn-cli.py log-limit-order \
-  --caller <walletAddress> \
-  --token <tokenAddress> \
-  --chain 3 \
-  --event 1 \
-  --expires 1807445030 \
-  --action '{"tokenIn":"So11111111111111111111111111111111111111112","tokenOut":"<tokenAddress>","amountIn":"11904761","limitNumber":0.00013789,"limitType":1,"direction":1,"antiMev":1}'
-```
-
-`--event`: `1`=买入, `2`=卖出 | `--chain`: `3`=Solana, `56`=BSC
+关键返回字段：`symbol`、`hold_amount`（持仓量）、`total_pnl`（总盈亏）、`total_return`（收益率）、`last_swap_type`（最近操作）、`token_address`、`decimals`。
 
 ---
 
-## Account Commands
+### 10. 买入代币（Solana）
+
+**触发词**：「用 X SOL 买入」「买这个 Token」「buy」
+
+> 1 SOL = 10⁹ lamports，0.1 SOL = `"100000000"`
 
 ```bash
-# Query credit balance
+python logearn-cli.py log-swap-solana \
+  --caller <solana_wallet_address> \
+  --event buy \
+  --action '{
+    "tokenIn": "So11111111111111111111111111111111111111112",
+    "tokenOut": "<token_address>",
+    "amountIn": "100000000",
+    "antiMev": 1,
+    "autoMaxFee": 0.2
+  }'
+```
+
+> `tokenIn` 固定为 SOL 原生地址 `So11111111111111111111111111111111111111112`
+
+---
+
+### 11. 卖出代币（按比例）
+
+**触发词**：「卖出 50%」「卖掉 30%」「sell」「减仓」
+
+> ⚠️ 必须先查持仓获取 `hold_amount` 和 `decimals`，再计算 `amountIn`
+
+```bash
+# Step 1：查持仓，获取 hold_amount 和 decimals
+python logearn-cli.py log-get-positions --address <wallet_address>
+
+# Step 2：计算 amountIn
+# amountIn = int(hold_amount * sell_ratio * 10^decimals)
+# 例：持有 100 枚，decimals=6，卖 50%：amountIn = int(100 * 0.5 * 1e6) = "50000000"
+
+# Step 3a：Solana 卖出
+python logearn-cli.py log-swap-solana \
+  --caller <solana_wallet> \
+  --event sell \
+  --action '{
+    "tokenIn": "<token_address>",
+    "tokenOut": "So11111111111111111111111111111111111111112",
+    "amountIn": "<calculated_amount>",
+    "antiMev": 1
+  }'
+
+# Step 3b：BSC 卖出
+python logearn-cli.py log-swap-bsc \
+  --caller <evm_wallet> \
+  --event sell \
+  --action '{
+    "tokenIn": "<token_address>",
+    "tokenOut": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+    "amountIn": "<calculated_amount>",
+    "antiMev": 1
+  }'
+```
+
+---
+
+### 12. 查询交易日志
+
+**触发词**：「交易日志」「交易明细」「最近买卖记录」「历史交易」
+
+```bash
+python logearn-cli.py log-get-trade-logs \
+  --address <wallet_address> \
+  --chain 3 \
+  --size 50
+```
+
+返回字段：`tx_hash`、`event_type`（buy/sell）、`symbol`、`amount_in`、`amount_out`、`price_usd`、`created_time`。
+
+---
+
+### 13. 查询 K 线数据
+
+**触发词**：「K 线」「k-line」「candlestick」「过去 24 小时行情」「交易量」
+
+> 默认 `interval=900`（15 分钟），`size=96` 条 = 覆盖 24 小时
+
+```bash
+python logearn-cli.py log-get-kline \
+  --token <token_address> \
+  --chain 3 \
+  --interval 900 \
+  --size 96
+```
+
+常用 `interval` 值（秒）：`300`=5m，`900`=15m，`3600`=1h，`86400`=1d
+
+返回字段：`time`、`open/high/low/close`（原生币计价）、`openU/closeU`（USD 计价）、`volume`。
+
+---
+
+### 14. 查询 API 额度
+
+**触发词**：「API 额度」「credit 余额」「还剩多少配额」「额度使用情况」
+
+```bash
 python logearn-cli.py log-quota
-
-# Call statistics (last 30 days)
-python logearn-cli.py log-stats
-
-# List API Keys
-python logearn-cli.py log-keys
 ```
 
 ---
 
-## Error Handling
+## 示例提示词
+- `使用 logearn, 查询一下过去5分钟的热门榜单，top 50 有哪些代币`
+- `使用 logearn, 查询一下过去5分钟精选信号有哪些代币`
+- `使用 logearn, 查询一下 <token_address> 8大持仓指标`
+- `使用 logearn, 查询一下 <token_address> 所有的历史信号`
 
-All commands output JSON. Check `code`:
+- `使用 logearn 所有信号查询，筛选按顺序出现了【精选精选、回撤反弹信号、共振信号】 信号的代币有哪些`
+- `使用 logearn 所有信号查询，所有关联 CZ 或者 何一叙事相关的信号的代币，按照代币的创建时间倒序排列发我`
+- `使用logearn ,所有信号查询，有苏醒信号的代币，如果今天之前存在2次以上的苏醒信号的代币，列表发我`
 
-| code | meaning |
-|------|---------|
-| `200` | success — data in `data` field |
-| non-200 | error — reason in `msg` field |
-| `"Quota insufficient"` | recharge credits needed |
-| `"Credits per minute exceeded"` | rate limit hit (600/min), slow down |
-| `"Invalid or disabled API Key"` | check `LOGEARN_API_KEY` |
-| `"Unknown skillCode"` | invalid command path |
+- `查询一下，我 logearn 钱包账户余额`
+- `查询一下，我 logearn 平台上面目前的持仓情况`
+- `使用 logearn 用 0.1 SOL 买入 <token_address>`
+- `使用 logearn 卖出 BSC 上 <token_address> 的 50%`
+- `使用 logearn, 把我持有的 <token_address> 卖掉 30%`
+- `查询一下我 logearn 上面的交易日志`
+- `使用 logearn 查看 <token_address> 过去 24 小时的 K 线和交易量`
+- `查询一下我 logearn api 额度使用情况`
+
+
+## 注意事项
+
+1. **链 ID 必须明确**：`log-get-token-info`、`log-get-token-signal`、`log-get-kline`、`log-get-balance` 均要求 `--chain` 参数。
+2. **交易使用真实资金** ⚠️：执行 `log-swap-*` 和 `log-limit-order` 前，请向用户确认钱包地址和交易金额。
+3. **卖出必须先查持仓**：按比例卖出必须先调用 `log-get-positions` 获取 `hold_amount` 与 `decimals`，再计算 `amountIn`。
+4. **Credit 消耗**：`log-get-24h-signals` 消耗 5 credits/次，`log-get-hot` 消耗 3 credits/次，注意频率控制。
+5. **地址格式**：Solana 地址为 Base58 格式；BSC 地址为 `0x...` 格式，混用时需指定 `--chain`。

@@ -1,116 +1,97 @@
 # LogEarn Skills
 
-> 基于 LogEarn Open API 的链上数据查询与交易 Python 工具集，支持 Solana 和 BSC。
-
-[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
----
-
-## 功能概览
-
-- **AI 综合信号** — 获取 Solana/BSC 全链实时 AI 信号
-- **热门榜单** — 查询最近 5 分钟 / 1 小时热门 Token
-- **K 线数据** — 获取任意 Token 的 OHLCV K 线
-- **Token 详情** — 价格、市值、持仓分布等链上数据
-- **Token 历史信号** — 查看特定 Token 的历史 AI 信号记录
-- **仓位查询** — 多链多地址仓位一览
-- **交易明细** — 历史买卖记录
-- **限价单管理** — 查询/挂限价单（含止盈止损）
-- **链上交易** — Solana / BSC 真实交易（`solana_swap` / `bsc_swap`）
-- **账户管理** — Credits 余额、调用统计、API Key 列表
-
----
+LogEarn Open API 的 Python CLI 封装，让 AI Agent 能便捷地查询链上 AI 信号、热门榜单、持仓数据并执行链上交易。
 
 ## 快速开始
 
-### 1. 获取 API Key
-
-登录 [https://logearn.com](https://logearn.com) 官网获取 `LOGEARN_API_KEY`（格式：`sk_xxxxxxxx`）。
-
-### 2. 设置环境变量
+### 1. 配置环境变量
 
 ```bash
-export LOGEARN_API_KEY=sk_xxxxxxxx
-
-# 可选：自定义 API 地址（默认 https://logearn.com/logearn）
-export LOGEARN_API_BASE=https://logearn.com/logearn
+export LOGEARN_API_KEY="sk_xxxxxxxx"                      # 必填：登录 https://logearn.com 获取
+export LOGEARN_API_BASE="https://logearn.com/logearn"     # 可选，默认此值
 ```
 
-### 3. 运行
-
-无需安装任何依赖，Python 3.7+ 标准库即可运行：
+### 2. 运行
 
 ```bash
-python logearn-cli.py log-get-24h-signals
+python logearn-cli.py <命令> [参数]
 ```
 
 ---
 
-## CLI 命令速查
+## 命令速查
 
-### 数据查询
+| 命令 | 说明 | 必填参数 |
+|------|------|---------|
+| `log-get-24h-signals` | 24h 内所有 AI 信号（5 credits） | — |
+| `log-get-hot` | 热门代币榜单（3 credits） | `--group 5m\|1h` |
+| `log-get-token-info` | 代币详情 + 八大持仓指标（1 credit） | `--token` `--chain` |
+| `log-get-token-signal` | 代币历史 AI 信号（2 credits） | `--token` `--chain` |
+| `log-get-kline` | 历史 K 线（1 credit） | `--token` `--chain` |
+| `log-get-balance` | 钱包余额（免费） | `--address` `--chain` |
+| `log-get-positions` | 持仓列表（免费） | `--address` |
+| `log-get-trade-logs` | 交易明细（免费） | `--address` |
+| `log-get-limit-orders` | 限价单列表（免费） | `--address` |
+| `log-swap-solana` | Solana 买卖 ⚠️（免费） | `--caller` `--event` `--action` |
+| `log-swap-bsc` | BSC 买卖 ⚠️（免费） | `--caller` `--event` `--action` |
+| `log-limit-order` | 挂限价单 ⚠️（免费） | `--caller` `--token` `--action` |
+| `log-quota` | 查询 Credit 余额（免费） | — |
+
+---
+
+## 使用示例
 
 ```bash
-# AI 综合信号（双链）
+# 查询 5 分钟热门榜单（Solana）
+python logearn-cli.py log-get-hot --group 5m --chain 3
+
+# 查询 24 小时所有 AI 信号
 python logearn-cli.py log-get-24h-signals
 
-# 热门榜单（5m / 1h）
-python logearn-cli.py log-get-hot --group 5m
-python logearn-cli.py log-get-hot --chain 3 --group 1h
+# 查询代币八大持仓指标
+python logearn-cli.py log-get-token-info \
+  --token FDBjQdN4Uf8rsJfn9eNRbmNjaQktCdqJ63Ptijfdpump \
+  --chain 3
 
-# K 线（15m，96 根）
-python logearn-cli.py log-get-kline --token <tokenAddress>
+# 查询代币历史 AI 信号
+python logearn-cli.py log-get-token-signal \
+  --token FDBjQdN4Uf8rsJfn9eNRbmNjaQktCdqJ63Ptijfdpump \
+  --chain 3
 
-# Token 详情
-python logearn-cli.py log-get-token-info --token <tokenAddress>
+# 查询过去 24 小时 K 线（15 分钟周期）
+python logearn-cli.py log-get-kline \
+  --token FDBjQdN4Uf8rsJfn9eNRbmNjaQktCdqJ63Ptijfdpump \
+  --chain 3 --interval 900 --size 96
 
-# Token 历史 AI 信号（--chain 必填）
-python logearn-cli.py log-get-token-signal --token <tokenAddress> --chain 3
+# 查询 Solana 钱包余额
+python logearn-cli.py log-get-balance \
+  --address Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY \
+  --chain 3
 
-# 原生币余额（--chain 必填）
-python logearn-cli.py log-get-balance --address <walletAddress> --chain 3
+# 查询持仓情况
+python logearn-cli.py log-get-positions \
+  --address Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY
 
-# 仓位
-python logearn-cli.py log-get-positions --address <walletAddress>
-
-# 交易明细
-python logearn-cli.py log-get-trade-logs --address <walletAddress>
-
-# 限价单列表
-python logearn-cli.py log-get-limit-orders --address <walletAddress>
-```
-
-### 交易（⚠️ 真实资金）
-
-```bash
-# Solana 买入
+# 用 0.1 SOL 买入代币（0.1 SOL = 100000000 lamports）
 python logearn-cli.py log-swap-solana \
-  --caller <walletAddress> \
+  --caller Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY \
   --event buy \
-  --action '{"tokenIn":"So11111111111111111111111111111111111111112","tokenOut":"<tokenAddress>","amountIn":"11904761","antiMev":1,"autoMaxFee":0.2}'
+  --action '{"tokenIn":"So11111111111111111111111111111111111111112","tokenOut":"<token>","amountIn":"100000000","antiMev":1}'
 
-# BSC 卖出
-python logearn-cli.py log-swap-bsc \
-  --caller <evmWalletAddress> \
-  --event sell \
-  --action '{"tokenIn":"<tokenAddress>","tokenOut":"0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c","amountIn":"<amountRaw>","antiMev":1}'
-
-# 挂限价单
-python logearn-cli.py log-limit-order \
-  --caller <walletAddress> \
-  --token <tokenAddress> \
-  --chain 3 --event 1 \
-  --action '{"tokenIn":"So11111111111111111111111111111111111111112","tokenOut":"<tokenAddress>","amountIn":"11904761","limitNumber":0.00013789,"limitType":1,"direction":1,"antiMev":1}'
+# 查询 Credit 余额
+python logearn-cli.py log-quota
 ```
 
-### 账户
+---
 
-```bash
-python logearn-cli.py log-quota   # Credits 余额
-python logearn-cli.py log-stats   # 近 30 天调用统计
-python logearn-cli.py log-keys    # API Key 列表
-```
+## AI 信号类型
+
+| 信号字段名 | 中文名 | 说明 |
+|-----------|--------|------|
+| `continue_breakout_volume` | 早期精选 | 早期小市值、有潜力的金狗 |
+| `v_breakout_volume` | 回撤反弹 | 价格回撤后出现反弹迹象 |
+| `breakout_volume_10x` | 休眠苏醒 | 沉寂后重新活跃，有 10x 潜力 |
+| `whale` | 蓝筹共振 | 巨鲸资金介入，多维度共振 |
 
 ---
 
@@ -123,68 +104,7 @@ python logearn-cli.py log-keys    # API Key 列表
 
 ---
 
-## 计费说明
+## 文档
 
-| 操作 | 消耗 |
-|------|------|
-| AI 综合信号 | 3 credits |
-| 热门榜单 / K线 | 1–2 credits |
-| Token 详情 / 历史信号 | 1 credit |
-| 链上交易（swap） | 5 credits |
-| 仓位 / 交易明细 / 限价单查询 | 免费（限速 1/s） |
-
-充值：0.5 SOL = 100,000 credits（最低 100,000）。所有 API Key 共享 Credits。
-
----
-
-
-## Python API 调用
-
-除 CLI 外，也可直接在 Python 代码中引用：
-
-```python
-import sys
-sys.path.insert(0, 'src')
-import api
-
-# 查询 AI 信号
-data = api.get_all_signal(chain=['3', '56'])
-
-# 查询仓位
-data = api.get_wallet_positions(address='<walletAddress>', page_size=20)
-
-# Solana 交易
-data = api.solana_swap(
-    caller='<walletAddress>',
-    event_type='buy',
-    action={
-        'tokenIn': 'So11111111111111111111111111111111111111112',
-        'tokenOut': '<tokenAddress>',
-        'amountIn': '11904761',
-        'antiMev': 1,
-    }
-)
-```
-
-详细接口文档见 [api.md](api.md)。
-
----
-
-## 错误处理
-
-所有命令输出 JSON，检查 `code` 字段：
-
-| code | 含义 |
-|------|------|
-| `200` | 成功，数据在 `data` 字段 |
-| 非 200 | 失败，原因在 `msg` 字段 |
-| `"Quota insufficient"` | Credits 不足，需充值 |
-| `"Credits per minute exceeded"` | 触发频率限制（600/min） |
-| `"Invalid or disabled API Key"` | 检查 `LOGEARN_API_KEY` |
-
----
-
-## 相关链接
-
-- 官网：[https://logearn.com](https://logearn.com)
-- 客服 Telegram：[@chickenbro_logearn](https://t.me/chickenbro_logearn)
+- 详细接口说明：[api.md](./api.md)
+- AI Agent 接入指南：[skill.md](./skill.md)
