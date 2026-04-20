@@ -20,7 +20,7 @@ def is_ok(res: dict) -> bool:
 
 def unwrap(res: dict, label: str) -> Any:
     if not is_ok(res):
-        raise RuntimeError(f'[{label}] error {res.get("code")}: {res.get("msg", "unknown")}')
+        return f'[{label}] error {res.get("code")}: {res.get("message", "unknown")}'
     return res['data']
 
 
