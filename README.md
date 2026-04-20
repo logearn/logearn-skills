@@ -1,6 +1,6 @@
 # LogEarn Skills
 
-LogEarn Open API 的 Python CLI 封装，让 AI Agent 能便捷地查询链上 AI 信号、热门榜单、持仓数据并执行链上交易。
+LogEarn 作为专注筹码分析的交易平台，提供了动态筹码分析，实时资金流向指标，早期精选金狗信号等丰富且专业功能， 大大的提升了行业用户交易的胜率。本 Skill 通过 CLI 工具对接 LogEarn Open API, 实现 AI 信号查询、资金流向、筹码分析、热门榜单、K 线数据、钱包管理、链上交易等功能，旨在帮助开发者和交易者更好地利用这些专业数据。将自己的 AI Agent 打造成最聪明的交易 Agent。
 
 ## 快速开始
 
