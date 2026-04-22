@@ -41,6 +41,7 @@ LogEarn CLI  (Python 3.7+  |  env: LOGEARN_API_KEY)
 Usage: python logearn-cli.py <command> [options]
 
 Data:
+  log-get-native-price  查询 SOL/BNB 最新行情价格（公开，无需鉴权）  [--chain 3|56]
   log-get-24h-signals   查询24小时内所有【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】信号以及相关代币   [--chain 3,56]
   log-get-hot           查询五分钟/1小时热门代币榜单         [--chain 3,56] [--group 5m|1h]
   log-get-token-info    查询代币详情，包括八大实时持仓指标     --token <addr> [--chain 3]
@@ -74,18 +75,25 @@ def main():
     cmd, *rest = argv
     opts = parse_args(rest)
 
-    if cmd == 'log-get-24h-signals':
+    if cmd == 'log-get-native-price':
+        chain = int(opts['chain']) if 'chain' in opts else None
+        res   = api.get_native_price(chain=chain)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+
+    elif cmd == 'log-get-24h-signals':
         chain  = opts['chain'].split(',') if 'chain' in opts else None
         res    = api.get_all_signal(chain=chain)
         data   = helpers.unwrap(res, 'get-24h-signals')
-        print(json.dumps(helpers.fmt_signals(data), ensure_ascii=False, indent=2, sort_keys=True))
+        native_prices = helpers.get_cached_native_prices()
+        print(json.dumps(helpers.fmt_signals(data, native_prices), ensure_ascii=False, indent=2, sort_keys=True))
 
     elif cmd == 'log-get-hot':
         chain = opts['chain'].split(',') if 'chain' in opts else None
-        gid = 13 if opts['group'] == '1h' else 12
+        gid = 13 if opts.get('group') == '1h' else 12
         res   = api.get_hot_list(chain=chain, token_group_id=gid)
         data  = helpers.unwrap(res, 'get-hot')
-        print(json.dumps(helpers.fmt_signals(data), ensure_ascii=False, indent=2, sort_keys=True))
+        native_prices = helpers.get_cached_native_prices()
+        print(json.dumps(helpers.fmt_signals(data, native_prices), ensure_ascii=False, indent=2, sort_keys=True))
 
     elif cmd == 'log-get-token-info':
         if 'token' not in opts: die('--token <address> required')
@@ -94,8 +102,8 @@ def main():
         chain = [int(opts['chain'])] if 'chain' in opts else None
         res   = api.get_token_info(base=opts['token'], chain=chain)
         data  = helpers.unwrap(res, 'get-token-info')
-        # data = {'3': [{xxx}], '56': [{xxx}]}
-        print(json.dumps(helpers.fmt_signals(data), ensure_ascii=False, indent=2, sort_keys=True))
+        native_prices = helpers.get_cached_native_prices()
+        print(json.dumps(helpers.fmt_signals(data, native_prices), ensure_ascii=False, indent=2, sort_keys=True))
 
     elif cmd == 'log-get-token-signal':
         if 'token' not in opts: die('--token <address> required')
@@ -103,7 +111,8 @@ def main():
         res  = api.get_token_signal(index_token_address=opts['token'],
                                     chain=opts.get('chain'))
         data = helpers.unwrap(res, 'get-token-signal')
-        print(json.dumps(helpers.fmt_signals(data), ensure_ascii=False, indent=2, sort_keys=True))
+        native_prices = helpers.get_cached_native_prices()
+        print(json.dumps(helpers.fmt_signals(data, native_prices), ensure_ascii=False, indent=2, sort_keys=True))
 
     elif cmd == 'log-get-kline':
         if 'token' not in opts: die('--token <address> required')
@@ -121,10 +130,10 @@ def main():
 
 
     elif cmd == 'log-get-balance':
-        if 'address' not in opts: die('--address <wallet> required')
-        if 'chain' not in opts: die('--chain <chain> required')
+        # if 'address' not in opts: die('--address <wallet> required')
+        # if 'chain' not in opts: die('--chain <chain> required')
 
-        res  = api.get_coin_balance(address=opts['address'], chain=int(opts['chain']))
+        res  = api.get_coin_balance(address=opts.get('address'), chain=int(opts['chain']) if 'chain' in opts else None)
         data = helpers.unwrap(res, 'get-balance')
         print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
 

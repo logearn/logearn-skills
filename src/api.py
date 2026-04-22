@@ -9,8 +9,8 @@ import os
 import urllib.request
 import time
 
-BASE = os.environ.get('LOGEARN_API_BASE', 'https://logearn.com/logearn')
-KEY  = os.environ.get('LOGEARN_API_KEY', '')
+BASE        = os.environ.get('LOGEARN_API_BASE',   'https://logearn.com/logearn')
+KEY         = os.environ.get('LOGEARN_API_KEY',    '')
 
 
 # ---------------------------------------------------------------------------
@@ -42,8 +42,30 @@ def http_get(path: str) -> dict:
         return json.loads(resp.read().decode('utf-8'))
 
 
+def http_get_public(url: str) -> dict:
+    """Public GET — no auth header required."""
+    req = urllib.request.Request(url, method='GET')
+    with urllib.request.urlopen(req) as resp:
+        return json.loads(resp.read().decode('utf-8'))
+
+
 def call_skill(skill_code: str, body: dict = None) -> dict:
     return http_post(f'/open/api/v1/call/{skill_code}', body or {})
+
+
+# ---------------------------------------------------------------------------
+# Public API  (no auth required)
+# ---------------------------------------------------------------------------
+
+def get_native_price(chain: int = None) -> dict:
+    """Native 币行情价格（公开，无需鉴权，不消耗 Credit）
+    chain=None  →  {"sol": "162.45", "bnb": "598.22"}
+    chain=3     →  {"chain": 3, "symbol": "SOL", "price": "162.45"}
+    """
+    url = f'{BASE}/web_cache/get_native_price'
+    if chain is not None:
+        url += f'?chain={chain}'
+    return http_get_public(url)
 
 
 # ---------------------------------------------------------------------------
@@ -92,8 +114,10 @@ def get_token_signal(index_token_address: str, chain: str = None) -> dict:
 
 def get_coin_balance(address: str, chain: int = None) -> dict:
     """账号Coin余额 — 1 credit"""
-    body = {'address': address}
+    #body = {'address': address}
+    body = {}
     if chain is not None: body['chain'] = chain
+    if address is not None: body['address'] = address
     return call_skill('get_coin_balance', body)
 
 

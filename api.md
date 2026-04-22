@@ -34,8 +34,47 @@ LogEarn 作为专注筹码分析的交易平台，提供了动态筹码分析，
 
 >
 > 完整接口列表：
+> - `GET  /web_cache/get_native_price` — Native 币行情（公开，无需鉴权）
 > - `POST /open/api/v1/call/{skillCode}` — 调用技能
 > - `GET  /open/api/v1/quota` — 查询配额余额
+
+---
+
+### GET /web_cache/get_native_price — Native 币行情价格（公开）
+
+获取 SOL/BNB 最新 USD 价格。**无需任何鉴权，不消耗 Credit**。
+
+CLI 会自动在调用信号、热门榜单、Token 详情接口前将该价格缓存（10 分钟有效）用于市値 USD 计算，不需手动调用。
+
+**请求参数**（Query String）:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `chain` | `int` | 否 | 链 ID：3=SOL，56=BNB，1=ETH；不传则一次返回 sol+bnb |
+
+**请求示例**:
+
+```bash
+# 只取 SOL 价格
+curl 'https://logearn.com/web_cache/get_native_price?chain=3'
+
+# 一次取 SOL + BNB
+curl 'https://logearn.com/web_cache/get_native_price'
+```
+
+**返回（传 chain 时）**:
+
+```json
+{ "chain": 3, "symbol": "SOL", "price": "162.45" }
+```
+
+**返回（不传 chain 时）**:
+
+```json
+{ "sol": "162.45", "bnb": "598.22" }
+```
+
+> `price` 为字符串格式（避免浮点精度问题），单位 USD。
 
 ---
 
@@ -43,9 +82,9 @@ LogEarn 作为专注筹码分析的交易平台，提供了动态筹码分析，
 
 | skillCode | 名称 | 消耗            | 必填参数 |
 |-----------|------|---------------|---------|
-| `get_all_signal` | 查询24小时内所有【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】信号以及相关代币 | **5 credits** | — |
-| `get_hot_list` | 查询五分钟/1小时热门代币榜单 | 3 credit      | — |
+| `get_all_signal` | 查询24小时内所有【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】信号以及相关代币 | **3 credits** | — |
 | `get_token_signal` | 查询某一个代币所有历史信号，包括【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】 | 2 credit      | `index_token_address`,`chain` |
+| `get_hot_list` | 查询五分钟/1小时热门代币榜单 | 1 credit      | — |
 | `get_kline_list` | 获取代币的历史K线数据| 1 credit      | `base`,`chain` |
 | `get_token_info` | 查询代币详情，包括八大实时持仓指标  | 1 credit      | `params.base`, `chain` |
 | `get_coin_balance` | 查询所有交易账号余额 | **免费**（1次/s）| `address` |

@@ -23,8 +23,9 @@ python logearn-cli.py <命令> [参数]
 
 | 命令 | 说明 | 必填参数 |
 |------|------|---------|
-| `log-get-24h-signals` | 24h 内所有 AI 信号（5 credits） | — |
-| `log-get-hot` | 热门代币榜单（3 credits） | `--group 5m\|1h` |
+| `log-get-native-price` | SOL/BNB 实时价格（公开，免费） | — |
+| `log-get-24h-signals` | 24h 内所有 AI 信号（3 credits） | — |
+| `log-get-hot` | 热门代币榜单（1 credit） | `--group 5m\|1h` |
 | `log-get-token-info` | 代币详情 + 八大持仓指标（1 credit） | `--token` `--chain` |
 | `log-get-token-signal` | 代币历史 AI 信号（2 credits） | `--token` `--chain` |
 | `log-get-kline` | 历史 K 线（1 credit） | `--token` `--chain` |
