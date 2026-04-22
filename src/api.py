@@ -121,11 +121,12 @@ def get_coin_balance(address: str, chain: int = None) -> dict:
     return call_skill('get_coin_balance', body)
 
 
-def get_wallet_positions(address: str, page_size: int = None, page_num: int = None,
+def get_wallet_positions(address: str = None, page_size: int = None, page_num: int = None,
                          sort_field: str = None, sort_direction: str = None,
                          hold_amount: str = None) -> dict:
     """仓位查询 — free, 1/s"""
-    body = {'address': address}
+    body = {}
+    if address is not None: body['address'] = address
     if page_size:      body['page_size']      = page_size
     if page_num:       body['page_num']       = page_num
     if sort_field:     body['sort_field']     = sort_field
@@ -134,20 +135,22 @@ def get_wallet_positions(address: str, page_size: int = None, page_num: int = No
     return call_skill('get_wallet_positions', body)
 
 
-def get_trade_logs(address: str, chain: str = None, page_size: int = None,
+def get_trade_logs(address: str = None, chain: str = None, page_size: int = None,
                    page_num: int = None) -> dict:
     """交易明细 — free, 1/s"""
-    body = {'address': address}
+    body = {}
+    if address is not None: body['address'] = address
     if chain:     body['chain']     = chain
     if page_size: body['page_size'] = page_size
     if page_num:  body['page_num']  = page_num
     return call_skill('get_trade_logs', body)
 
 
-def get_limit_orders(address: str, status: int = None, page_size: int = None,
+def get_limit_orders(address: str = None, status: int = None, page_size: int = None,
                      page_num: int = None) -> dict:
     """查询限价单 — free, 1/s"""
-    body = {'address': address}
+    body = {}
+    if address is not None: body['address'] = address
     if status is not None: body['status']    = status
     if page_size:          body['page_size'] = page_size
     if page_num:           body['page_num']  = page_num

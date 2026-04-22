@@ -62,10 +62,10 @@ log-get-kline          历史K线数据                 --token <addr> --chain <
 ### 账户与仓位查询
 
 ```
-log-get-balance        钱包余额（SOL/BNB）         --address <wallet> --chain <3|56>
-log-get-positions      持仓列表                    --address <wallet> [--size 20] [--page 0]
-log-get-trade-logs     交易明细                    --address <wallet> [--chain 3|56] [--size 100]
-log-get-limit-orders   限价单列表                  --address <wallet> [--status -1|0|1|2]
+log-get-balance        钉包余额（SOL/BNB）         [--address <wallet>] [--chain 3|56]
+log-get-positions      持仓列表                    [--address <wallet>] [--size 20] [--page 0]
+log-get-trade-logs     交易明细                    [--address <wallet>] [--chain 3|56] [--size 100]
+log-get-limit-orders   限价单列表                  [--address <wallet>] [--status -1|0|1|2]
 ```
 
 ### 链上交易
@@ -202,20 +202,20 @@ python logearn-cli.py log-get-token-signal \
 
 ---
 
-### 8. 查询钱包余额
+### 8. 查询钉包余额
 
-**触发词**：「钱包余额」「SOL 余额」「BNB 余额」「我的账户余额」
+**触发词**：「钉包余额」「SOL 余额」「BNB 余额」「我的账户余额」
+
+> `--address` 和 `--chain` 均为可选，不传则返回所有账户余额。
 
 ```bash
-# Solana
+# 查询所有账户余额
+python logearn-cli.py log-get-balance
+
+# 指定 Solana 钉包
 python logearn-cli.py log-get-balance \
   --address <solana_wallet_address> \
   --chain 3
-
-# BSC
-python logearn-cli.py log-get-balance \
-  --address <evm_wallet_address> \
-  --chain 56
 ```
 
 ---
@@ -224,7 +224,13 @@ python logearn-cli.py log-get-balance \
 
 **触发词**：「持仓情况」「我现在持有哪些代币」「仓位」「我的仓位」
 
+> `--address` 为可选，不传则返回所有账户持仓。
+
 ```bash
+# 查询所有账户持仓
+python logearn-cli.py log-get-positions
+
+# 指定钉包
 python logearn-cli.py log-get-positions --address <wallet_address>
 ```
 
@@ -298,7 +304,13 @@ python logearn-cli.py log-swap-bsc \
 
 **触发词**：「交易日志」「交易明细」「最近买卖记录」「历史交易」
 
+> `--address` 为可选，不传则返回所有账户交易记录。
+
 ```bash
+# 查询所有账户交易明细
+python logearn-cli.py log-get-trade-logs
+
+# 指定钉包和链
 python logearn-cli.py log-get-trade-logs \
   --address <wallet_address> \
   --chain 3 \

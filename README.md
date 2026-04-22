@@ -29,10 +29,10 @@ python logearn-cli.py <命令> [参数]
 | `log-get-token-info` | 代币详情 + 八大持仓指标（1 credit） | `--token` `--chain` |
 | `log-get-token-signal` | 代币历史 AI 信号（2 credits） | `--token` `--chain` |
 | `log-get-kline` | 历史 K 线（1 credit） | `--token` `--chain` |
-| `log-get-balance` | 钱包余额（免费） | `--address` `--chain` |
-| `log-get-positions` | 持仓列表（免费） | `--address` |
-| `log-get-trade-logs` | 交易明细（免费） | `--address` |
-| `log-get-limit-orders` | 限价单列表（免费） | `--address` |
+| `log-get-balance` | 钱包余额（免费） | `--address` `--chain`（均可选） |
+| `log-get-positions` | 持仓列表（免费） | `--address`（可选） |
+| `log-get-trade-logs` | 交易明细（免费） | `--address`（可选） |
+| `log-get-limit-orders` | 限价单列表（免费） | `--address`（可选） |
 | `log-swap-solana` | Solana 买卖 （免费） | `--caller` `--event` `--action` |
 | `log-swap-bsc` | BSC 买卖 （免费） | `--caller` `--event` `--action` |
 | `log-limit-order` | 挂限价单 （免费） | `--caller` `--token` `--action` |

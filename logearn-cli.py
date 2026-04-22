@@ -47,11 +47,11 @@ Data:
   log-get-token-info    查询代币详情，包括八大实时持仓指标     --token <addr> [--chain 3]
   log-get-token-signal  查询某一个代币所有历史信号，包括【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】    --token <addr> [--chain 3]
   log-get-kline         获取代币的历史K线数据             --token <addr> [--chain 3] [--interval 900] [--size 96] [--end <unix>]
-  log-get-balance       查询所有交易账号余额              --address <wallet> [--chain 3]
+  log-get-balance       查询所有交易账号余额              [--address <wallet>] [--chain 3]
 
-  log-get-positions     所有交易账户仓位查询              --address <wallet> [--size 20] [--page 0] [--sort field] [--dir asc|desc]
-  log-get-trade-logs    查询所有交易明细                --address <wallet> [--chain 3] [--size 100] [--page 0]
-  log-get-limit-orders  查询所有限价单                  --address <wallet> [--status -1|0|1|2]
+  log-get-positions     所有交易账户仓位查询              [--address <wallet>] [--size 20] [--page 0] [--sort field] [--dir asc|desc]
+  log-get-trade-logs    查询所有交易明细                [--address <wallet>] [--chain 3] [--size 100] [--page 0]
+  log-get-limit-orders  查询所有限价单                  [--address <wallet>] [--status -1|0|1|2]
 
 Trade  real funds:
   log-swap-solana       Solana 买卖                    --caller <wallet> --event buy|sell --action '<json>'
@@ -138,9 +138,8 @@ def main():
         print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
 
     elif cmd == 'log-get-positions':
-        if 'address' not in opts: die('--address <wallet> required')
         res  = api.get_wallet_positions(
-            address        = opts['address'],
+            address        = opts.get('address'),
             page_size      = int(opts['size']) if 'size' in opts else None,
             page_num       = int(opts['page']) if 'page' in opts else None,
             sort_field     = opts.get('sort'),
@@ -151,9 +150,8 @@ def main():
         print(json.dumps(helpers.fmt_positions(data), ensure_ascii=False, indent=2, sort_keys=True))
 
     elif cmd == 'log-get-trade-logs':
-        if 'address' not in opts: die('--address <wallet> required')
         res  = api.get_trade_logs(
-            address   = opts['address'],
+            address   = opts.get('address'),
             chain     = opts.get('chain'),
             page_size = int(opts['size']) if 'size' in opts else None,
             page_num  = int(opts['page']) if 'page' in opts else None,
@@ -162,9 +160,8 @@ def main():
         print(json.dumps(helpers.fmt_trade_logs(data), ensure_ascii=False, indent=2, sort_keys=True))
 
     elif cmd == 'log-get-limit-orders':
-        if 'address' not in opts: die('--address <wallet> required')
         res  = api.get_limit_orders(
-            address   = opts['address'],
+            address   = opts.get('address'),
             status    = int(opts['status']) if 'status' in opts else None,
             page_size = int(opts['size'])   if 'size'   in opts else None,
             page_num  = int(opts['page'])   if 'page'   in opts else None,

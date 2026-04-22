@@ -390,7 +390,7 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 
 #### Skill: `get_wallet_positions` — 所有交易账户仓位查询
 
-查询指定钱包地址当前持仓的代币列表，支持多地址、分页、排序。`address` 为必填。默认返回所有钱包的仓位情况，如果指定了 address 和 chain，则只返回指定地址的仓位情况。
+查询当前持仓的代币列表，支持多地址、分页、排序。默认返回所有钱包的仓位情况，如果指定了 address，则只返回指定地址的仓位情况。
 **请求参数**:
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
