@@ -46,6 +46,7 @@ Data:
   log-get-hot           查询五分钟/1小时热门代币榜单         [--chain 3,56] [--group 5m|1h]
   log-get-token-info    查询代币详情，包括八大实时持仓指标     --token <addr> [--chain 3]
   log-get-token-signal  查询某一个代币所有历史信号，包括【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】    --token <addr> [--chain 3]
+  log-get-follow-tx     查询关注的聪明錢最新链上交易         [--chain 3,56]
   log-get-kline         获取代币的历史K线数据             --token <addr> [--chain 3] [--interval 900] [--size 96] [--end <unix>]
   log-get-balance       查询所有交易账号余额              [--address <wallet>] [--chain 3]
 
@@ -111,6 +112,14 @@ def main():
         res  = api.get_token_signal(index_token_address=opts['token'],
                                     chain=opts.get('chain'))
         data = helpers.unwrap(res, 'get-token-signal')
+        native_prices = helpers.get_cached_native_prices()
+        print(json.dumps(helpers.fmt_signals(data, native_prices), ensure_ascii=False, indent=2, sort_keys=True))
+
+
+    elif cmd == 'log-get-follow-tx':
+        chain     = opts['chain'].split(',') if 'chain' in opts else None
+        res  = api.get_follow_tx(chain=chain)
+        data = helpers.unwrap(res, 'get-follow-tx')
         native_prices = helpers.get_cached_native_prices()
         print(json.dumps(helpers.fmt_signals(data, native_prices), ensure_ascii=False, indent=2, sort_keys=True))
 

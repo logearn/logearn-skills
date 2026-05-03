@@ -169,7 +169,8 @@ _SIGNALS_TYPE_AND_DATA_FIELD_MAP = {
   'whale': 'whale_list',
   'continue_breakout_volume': 's15_list',
   'breakout_volume_10x': 's300_list',
-  'v_breakout_volume': 'kline_list'
+  'v_breakout_volume': 'kline_list',
+  'followed': 'notification_list'
 }
 
 
@@ -267,6 +268,10 @@ def format_signal(
                     signal_time = created_time
                 top_price_mcap = None
                 low_price_mcap = None
+            elif signals_type == 'followed':
+                signal_time = float(alert.get("block_time") or 0)
+                top_price_mcap = None
+                low_price_mcap = None
             else:
                 top_price_mcap = None
                 low_price_mcap = None
@@ -300,6 +305,23 @@ def format_signal(
                 notice["notice_mcap"] = (
                     float(alert.get("signal_price_v1") or 0) * total_supply * price_scale * native_price
                 )
+            elif signals_type == 'followed':
+                time = int(alert.get("block_time") or 0)
+                trade_type = alert.get("trade_type")
+                if int(alert.get("trade_type") or 0) == 3:
+                    trade_type = 'transfer-out' if alert.get("is_followed") else 'transfer-in'
+
+                amount = int(alert.get("amount_token") or 0)
+                value = int(alert.get("amount_coin") or 0)
+                price = value / amount
+
+                notice["amount"] = amount / (10 ** token_decimals)
+                notice["value"] = value / chain_cfg['full_decimal']
+                notice["time"] = time
+                notice["signalTime"] = time
+                notice["trade_type"] = trade_type
+                notice["wallet"] = alert.get("caller")
+                notice["notice_mcap"] = price * total_supply * price_scale * native_price
 
             alerts.append(notice)
             last_traded = max(last_traded, signal_time or 0)

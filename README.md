@@ -28,6 +28,7 @@ python logearn-cli.py <命令> [参数]
 | `log-get-hot` | 热门代币榜单（1 credit） | `--group 5m\|1h` |
 | `log-get-token-info` | 代币详情 + 八大持仓指标（1 credit） | `--token` `--chain` |
 | `log-get-token-signal` | 代币历史 AI 信号（2 credits） | `--token` `--chain` |
+| `log-get-follow-tx` | 关注的聪明钱最新链上交易（2 credits） | — |
 | `log-get-kline` | 历史 K 线（1 credit） | `--token` `--chain` |
 | `log-get-balance` | 钱包余额（免费） | `--address` `--chain`（均可选） |
 | `log-get-positions` | 持仓列表（免费） | `--address`（可选） |
@@ -93,6 +94,7 @@ python logearn-cli.py log-quota
 | `v_breakout_volume` | 回撤反弹 | 价格回撤后出现反弹迹象 |
 | `breakout_volume_10x` | 休眠苏醒 | 沉寂后重新活跃，有 10x 潜力 |
 | `whale` | 蓝筹共振 | 巨鲸资金介入，多维度共振 |
+| `followed` | 关注信号 | 所有关注的钱包的链上交易明细 |
 
 ---
 

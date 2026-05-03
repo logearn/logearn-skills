@@ -112,6 +112,14 @@ def get_token_signal(index_token_address: str, chain: str = None) -> dict:
     return call_skill('get_token_signal', body)
 
 
+def get_follow_tx(chain: list = None) -> dict:
+    """关注地址交易 — 2 credits"""
+    body = {}
+    if chain is not None:
+        body['chain'] = [str(c) for c in chain]   
+    return call_skill('get_follow_tx', body)
+
+
 def get_coin_balance(address: str, chain: int = None) -> dict:
     """账号Coin余额 — 1 credit"""
     #body = {'address': address}

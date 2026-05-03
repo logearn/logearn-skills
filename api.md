@@ -84,6 +84,7 @@ curl 'https://logearn.com/web_cache/get_native_price'
 |-----------|------|---------------|---------|
 | `get_all_signal` | 查询24小时内所有【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】信号以及相关代币 | **3 credits** | — |
 | `get_token_signal` | 查询某一个代币所有历史信号，包括【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】 | 2 credit      | `index_token_address`,`chain` |
+| `get_follow_tx` | 查询关注的地址最新链上交易 | **2 credits** | — |
 | `get_hot_list` | 查询五分钟/1小时热门代币榜单 | 1 credit      | — |
 | `get_kline_list` | 获取代币的历史K线数据| 1 credit      | `base`,`chain` |
 | `get_token_info` | 查询代币详情，包括八大实时持仓指标  | 1 credit      | `params.base`, `chain` |
@@ -270,6 +271,43 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 ```
 
 ---
+
+
+#### Skill: `get_follow_tx` — 查询关注地址交易明细
+
+查询**关注的地址**的最新链上交易明细。
+
+**请求参数**:
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `chain` | `string[]` | 否 | `["3"]` | 链 ID 列表（`"3"`=Solana，`"56"`=BSC），支持多链合并 |
+
+
+**请求示例**:
+
+```bash
+# 1) 查询当前账号自己关注的聪明錢最新 Solana 交易
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_follow_tx" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# 2) 查询官方公共关注榜单（多链合并）
+curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/get_follow_tx" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chain": ["3","56"]
+  }'
+```
+
+**响应结构**:
+
+```json
+  { "...包含信号数据的 Token 对象, 见文末数据对象说明" },  
+```
+
 
 #### Skill: `get_kline_list` — 获取代币的历史K线数据
 
@@ -956,13 +994,14 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 | `continue_breakout_volume_list` | 早期精选信号 | 早期精选信号，代币创建后，首次出席资金流入时，会发出早期精选信号，精选时，如果最新的三根K线是连续上涨的，则为加强信号 |
 | `breakout_volume_10x_list` | 休眠苏醒信号 | 休眠苏醒信号，当代币休眠一段时间后，突然开始放量活跃，会发出苏醒信号。苏醒时，往往会短时间内发出多次苏醒信号 |
 | `v_breakout_volume_list` | 回撤反弹信号 | 回撤反弹信号，当代币价格回调幅度大于20%后，如果开始反弹，反弹20%，40%，60%， 新高，四个时间点，各通知一次 |
+| `followed_list` | 关注信号 | 所有关注的钱包的交易明细 |
 
 
 #### 所有信号通用字段
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `type` | `string` | 信号类型：`whale` / `v_breakout_volume` / `continue_breakout_volume` / `breakout_volume_10x` |
+| `type` | `string` | 信号类型：`whale` / `v_breakout_volume` / `continue_breakout_volume` / `breakout_volume_10x` / `followed` |
 | `signalTime` | `float` | 信号触发时间（Unix 秒） |
 | `signal_time` | `integer` | 信号对应的 K 线时间（Unix 秒） |
 | `token_address` | `string` | Token 合约地址（`whale` 信号也有 `tokenAddress` 字段，内容相同） |
@@ -1072,7 +1111,7 @@ curl -X POST "${LOGEARN_API_BASE:-https://logearn.com/logearn}/open/api/v1/call/
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `signal_best_type` | `string` | 最优信号类型（`whale` / `v_breakout_volume` / `continue_breakout_volume` / `breakout_volume_10x`） |
+| `signal_best_type` | `string` | 最优信号类型（`whale` / `v_breakout_volume` / `continue_breakout_volume` / `breakout_volume_10x` / `followed`） |
 | `signal_max_ratio` | `float` | 最优信号最大涨幅（%） |
 | `signal_max_mcap` | `float` | 最优信号最高市值（USD） |
 | `signal_max_time` | `float` | 最高点时间（Unix 秒） |
