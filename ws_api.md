@@ -56,10 +56,7 @@ wss://logearn.com/logearn/ws-skill?apiKey=<your_api_key>
 |---------|------|
 | `connected` | 连接成功 |
 | `subscribe` | 订阅操作响应 |
-| `token` | 实时代币行情推送 |
-| `signal` | 信号 / 关注地址交易推送 |
-| `kline` | K 线推送 |
-| `tx` | 链上交易推送 |
+| `data` | 所有数据推送（代币行情、AI 信号、K 线、交易明细均用此类型） |
 | `error` | 错误 |
 
 ---
@@ -135,7 +132,7 @@ wss://logearn.com/logearn/ws-skill?apiKey=<your_api_key>
 
 ### 1. 实时代币行情 `/token_stream_v2`
 
-订阅 Solana 或 BSC 链上代币的实时行情更新。数据结构与 `get_token_info` 返回一致。
+订阅 Solana 或 BSC 链上代币的实时行情更新。格式化后结构与 `get_token_info` 返回一致。
 
 **订阅示例**：
 
@@ -144,23 +141,32 @@ wss://logearn.com/logearn/ws-skill?apiKey=<your_api_key>
 {"type": "subscribe", "topic": "/token_stream_v2:56"}
 ```
 
-**推送消息**：
+**推送消息**（实际格式）：
 
 ```json
 {
   "type": "data",
-  "data": [{ "<Token 对象，结构与 get_token_info 返回一致>" }],
-  "timestamp": 1715745600100
+  "bytes": 399717,
+  "data": {
+    "data": {
+      "<timestamp_ms>": [
+        { "1": "<token_address>", "2": "<symbol>", "mp": { "mp_1": "<pool>", ... }, ... },
+        ...
+      ]
+    }
+  }
 }
 ```
 
-**格式化**：`src/tools/ws/fmt_token_stream.py` — 复用 `format_token()`
+> ⚠️ Token 对象字段经过压缩（如 `"1"` → `token_address`，`"mp"` → `main_pool`），**必须先经 `decompress_token()` 解压**再传给 `format_token()`。完整 key 映射见 `src/tools/ws/fmt_token_stream.py`。
+
+**格式化**：`src/tools/ws/fmt_token_stream.py` — `decompress_token()` → `format_token()`
 
 ---
 
 ### 2. 全量 AI 信号推送 `/notification_stream`
 
-所有新产生的 AI 信号（早期精选、回撤反弹、休眠苏醒、蓝筹共振）实时推送。数据结构与 `get_all_signal` 单条一致。
+所有新产生的 AI 信号（早期精选、回撤反弹、休眠苏醒、蓝筹共振）实时推送。格式化后结构与 `get_all_signal` 单条一致。
 
 **订阅示例**：
 
@@ -168,17 +174,33 @@ wss://logearn.com/logearn/ws-skill?apiKey=<your_api_key>
 {"type": "subscribe", "topic": "/notification_stream"}
 ```
 
-**推送消息**：
+**推送消息**（实际格式）：
 
 ```json
 {
-  "type": "signal",
-  "data": { "<Token 信号对象，结构与 get_all_signal 单条一致>" },
-  "timestamp": 1715745600500
+  "type": "data",
+  "bytes": 1234,
+  "data": {
+    "data": "{\"type\":\"s15\",\"detail\":\"{...token+signal JSON string...}\"}"
+  }
 }
 ```
 
-**格式化**：`src/tools/ws/fmt_notification_stream.py` — 复用 `format_signal()`
+> `data.data` 是 JSON 字符串，需要两次解析：
+> 1. `JSON.parse(data.data)` → `{ type, detail, ... }`
+> 2. `JSON.parse(detail)` → 实际 token+signal 对象
+>
+> 内层 `type` 取值及对应信号类型：
+>
+> | `type` | 信号类型 |
+> |--------|----------|
+> | `follow` / `public` | `followed`（关注地址交易） |
+> | `whale` | `whale`（蓝筹共振） |
+> | `kline_pattern` | `v_breakout_volume`（回撤反弹） |
+> | `s300` | `breakout_volume_10x`（休眠苏醒） |
+> | `s15` | `continue_breakout_volume`（早期精选） |
+
+**格式化**：`src/tools/ws/fmt_notification_stream.py` — 自动处理双层解析与字段重映射，复用 `format_signal()`
 
 ---
 
@@ -192,13 +214,15 @@ wss://logearn.com/logearn/ws-skill?apiKey=<your_api_key>
 {"type": "subscribe", "topic": "/notification_stream/12345"}
 ```
 
-**推送消息**：
+**推送消息**（格式待验收，与 `/notification_stream` 结构相同）：
 
 ```json
 {
-  "type": "signal",
-  "data": { "<关注地址交易对象，结构与 get_follow_tx 单条一致>" },
-  "timestamp": 1715745600600
+  "type": "data",
+  "bytes": 1234,
+  "data": {
+    "data": "{\"type\":\"follow\",\"detail\":\"{...follow tx JSON string...}\"}"
+  }
 }
 ```
 
@@ -275,14 +299,14 @@ import json
 from tools.ws.fmt_token_stream import format_token_stream_msg
 from tools.ws.fmt_notification_stream import format_notification_stream_msg
 
-# 收到 WS 消息后
+# 收到 WS 消息后（所有数据推送 type 均为 "data"，通过订阅的 topic 区分流）
 msg = json.loads(raw_message)
-if msg["type"] == "token":
-    formatted = format_token_stream_msg(msg)
-elif msg["type"] == "signal":
-    formatted = format_notification_stream_msg(msg)
+if msg.get("type") == "data":
+    # 根据当前订阅的 topic 选择对应格式化器
+    formatted_token  = format_token_stream_msg(msg)          # token_stream_v2
+    formatted_signal = format_notification_stream_msg(msg)   # notification_stream
 
-print(json.dumps(formatted, ensure_ascii=False, indent=2))
+print(json.dumps(formatted_token or formatted_signal, ensure_ascii=False, indent=2))
 ```
 
 ---
@@ -331,10 +355,10 @@ async def main():
             msg = json.loads(raw)
             t = msg.get("type")
 
-            if t == "token":
+            if t == "data":
+                # 根据订阅的 topic 选对应格式化器
                 print(json.dumps(format_token_stream_msg(msg), ensure_ascii=False, indent=2))
-            elif t == "signal":
-                print(json.dumps(format_notification_stream_msg(msg), ensure_ascii=False, indent=2))
+                # 或：print(json.dumps(format_notification_stream_msg(msg), ensure_ascii=False, indent=2))
             elif t == "error":
                 print(f"[ERROR] {msg['code']}: {msg['message']}")
                 break
