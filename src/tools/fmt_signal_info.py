@@ -229,10 +229,13 @@ def format_signal(
 
     for signals_type, data_field in _SIGNALS_TYPE_AND_DATA_FIELD_MAP.items():
         raw = token_signals.get(data_field) or "[]"
-        try:
-            tnex = json.loads(raw)
-        except Exception:
-            tnex = []
+        if isinstance(raw, (dict, list)):
+            tnex = raw
+        else:
+            try:
+                tnex = json.loads(raw)
+            except Exception:
+                tnex = []
         if not isinstance(tnex, list):
             tnex = [tnex]
         tnex = [x for x in tnex if x]  # compact

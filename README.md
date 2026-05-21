@@ -107,7 +107,24 @@ python logearn-cli.py log-quota
 
 ---
 
+## 实时数据（WebSocket）
+
+LogEarn 提供 5 种 WebSocket 实时数据流，无需轮询即可订阅最新行情、AI 信号推送、关注地址交易、K 线及链上买卖明细：
+
+| 数据流 | Topic 格式 | 说明 |
+|--------|-----------|------|
+| 实时代币行情 | `/token_stream_v2:<chainID>` | 全量代币实时价格与指标更新 |
+| 全量 AI 信号 | `/notification_stream` | 所有类型 AI 信号实时推送 |
+| 关注地址交易 | `/notification_stream/<uid>` | 我关注的聪明钱实时链上交易 |
+| 实时 K 线 | `/kline_v2:<chainID>:<token>:<resolution>` | 指定代币实时 K 线 |
+| 代币交易明细 | `/token:tx:<chainID>:<token>` | 指定代币实时买卖记录 |
+
+完整接口文档：[ws_api.md](./ws_api.md)　　完整 Python Demo：[test_ws.py](./test_ws.py)
+
+---
+
 ## 文档
 
 - 详细接口说明：[api.md](./api.md)
+- WebSocket 实时数据：[ws_api.md](./ws_api.md)
 - AI Agent 接入指南：[skill.md](./skill.md)
