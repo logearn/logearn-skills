@@ -174,6 +174,61 @@ _SIGNALS_TYPE_AND_DATA_FIELD_MAP = {
 }
 
 
+# signal_type → formatted list key (output of format_signal)
+_SIGNAL_LIST_KEYS = {
+    "continue_breakout_volume": "continue_breakout_volume_list",
+    "v_breakout_volume":        "v_breakout_volume_list",
+    "breakout_volume_10x":      "breakout_volume_10x_list",
+    "whale":                    "whale_list",
+}
+
+
+def _patch_missing_signal_ratios(token: dict, all_signals_list: dict) -> None:
+    """
+    Fallback: if server token_tag is missing s15_signal_* (or other) stats,
+    compute all_signals_max_ratio entry from actual signal list items.
+    Uses earliest signal notice_mcap as open and token max_up_mcap as ceiling.
+    """
+    ratio_map = token.get("all_signals_max_ratio") or {}
+    max_up_mcap = float(token.get("max_up_mcap") or 0)
+    max_up_time = float(token.get("max_up_mcap_time") or 0)
+
+    for sig_type, list_key in _SIGNAL_LIST_KEYS.items():
+        if sig_type in ratio_map:
+            continue
+        items = all_signals_list.get(list_key) or []
+        if not items:
+            continue
+        earliest = min(items, key=lambda x: float(x.get("signalTime") or 0))
+        open_mcap = float(earliest.get("notice_mcap") or 0)
+        open_time = float(earliest.get("signalTime") or 0)
+        if not open_mcap or not max_up_mcap or max_up_mcap <= open_mcap:
+            continue
+        ratio = (max_up_mcap - open_mcap) / open_mcap * 100
+        ratio_map[sig_type] = {
+            "open_time": open_time,
+            "open_mcap": open_mcap,
+            "max_time":  max_up_time,
+            "max_mcap":  max_up_mcap,
+            "max_ratio": ratio,
+            "type":      sig_type,
+        }
+
+    token["all_signals_max_ratio"] = ratio_map
+
+    # Update best-signal summary fields if a newly patched type beats current best
+    best_ratio = float(token.get("signal_max_ratio") or 0)
+    for sig_type, entry in ratio_map.items():
+        if entry["max_ratio"] > best_ratio:
+            best_ratio = entry["max_ratio"]
+            token["signal_max_ratio"]  = entry["max_ratio"]
+            token["signal_max_mcap"]   = entry["max_mcap"]
+            token["signal_max_time"]   = entry["max_time"]
+            token["signal_open_mcap"]  = entry["open_mcap"]
+            token["signal_open_time"]  = entry["open_time"]
+            token["signal_best_type"]  = sig_type
+
+
 def _parse_block_time(block_time: str) -> float:
     """ISO-8601 blockTime → unix seconds (whale signal)."""
     if not block_time:
@@ -334,6 +389,7 @@ def format_signal(
         )
 
     _token["all_signals_list"] = all_signals_list
+    _patch_missing_signal_ratios(_token, all_signals_list)
 
     whale_count = len(all_signals_list.get("whale", []))
     _format_hot_index(_token, whale_count)
