@@ -8,7 +8,7 @@ LogEarn 作为专注筹码分析的交易平台，提供了动态筹码分析，
 
 ```bash
 export LOGEARN_API_KEY="sk_xxxxxxxx"                      # 必填：登录 https://logearn.com 获取
-export LOGEARN_API_BASE="https://logearn.com/logearn"     # 可选，默认此值
+export LOGEARN_API_BASE="https://api.logearn.com/logearn"     # 可选，默认此值
 ```
 
 ### 2. 运行

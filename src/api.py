@@ -9,7 +9,7 @@ import os
 import urllib.request
 import time
 
-BASE        = os.environ.get('LOGEARN_API_BASE',   'https://logearn.com/logearn')
+BASE        = os.environ.get('LOGEARN_API_BASE',   'https://api.logearn.com/logearn')
 KEY         = os.environ.get('LOGEARN_API_KEY',    '')
 
 
