@@ -25,6 +25,7 @@ python logearn-cli.py <命令> [参数]
 |------|------|---------|
 | `log-get-native-price` | SOL/BNB 实时价格（公开，免费） | — |
 | `log-get-24h-signals` | 24h 内所有 AI 信号（3 credits） | — |
+| `log-filter-signal` | AI 信号搜索，按类型/时间区间/触发次数（2 credits） | — |
 | `log-get-hot` | 热门代币榜单（1 credit） | `--group 5m\|1h` |
 | `log-get-token-info` | 代币详情 + 八大持仓指标（1 credit） | `--token` `--chain` |
 | `log-get-token-signal` | 代币历史 AI 信号（2 credits） | `--token` `--chain` |
@@ -49,6 +50,9 @@ python logearn-cli.py log-get-hot --group 5m --chain 3
 
 # 查询 24 小时所有 AI 信号
 python logearn-cli.py log-get-24h-signals
+
+# 筛选 Solana 上的鲸鱼信号（AI 信号搜索）
+python logearn-cli.py log-filter-signal --chain 3 --type whale
 
 # 查询代币八大持仓指标
 python logearn-cli.py log-get-token-info \

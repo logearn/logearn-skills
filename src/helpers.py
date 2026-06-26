@@ -69,6 +69,11 @@ def fmt_signals(data: dict, native_prices: dict = None) -> list:
     Returns a flat list of formatted token dicts across all chains.
     Chains that are missing or empty are skipped.
     """
+    if not isinstance(data, dict):
+        # unwrap() failed (e.g. API returned data=null) — pass the error through
+        # instead of crashing on data.values().
+        return data
+
     result = []
     for chain_tokens in data.values():
         if not isinstance(chain_tokens, list):
@@ -84,6 +89,8 @@ def fmt_signals(data: dict, native_prices: dict = None) -> list:
 # Wallet positions
 # ---------------------------------------------------------------------------
 def fmt_positions(data: dict) -> dict:
+    if not isinstance(data, list):
+        return data
     formatted = [fmt_tools_format_position(p) for p in data]
     return formatted
 
@@ -93,6 +100,8 @@ def fmt_positions(data: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def fmt_trade_logs(data: dict) -> dict:
+    if not isinstance(data, list):
+        return data
     formatted = [fmt_tools_format_trade_log(p) for p in data]
     return formatted
 
@@ -100,9 +109,10 @@ def fmt_trade_logs(data: dict) -> dict:
 # Limit orders
 # ---------------------------------------------------------------------------
 def fmt_limit_orders(data: dict) -> dict:
-    print(data)
+    if not isinstance(data, list):
+        return data
     formatted = [fmt_tools_format_limit_order(p) for p in data]
-    return formatted    
+    return formatted
 
 # ---------------------------------------------------------------------------
 # Swap result

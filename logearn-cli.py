@@ -43,6 +43,7 @@ Usage: python logearn-cli.py <command> [options]
 Data:
   log-get-native-price  查询 SOL/BNB 最新行情价格（公开，无需鉴权）  [--chain 3|56]
   log-get-24h-signals   查询24小时内所有【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】信号以及相关代币   [--chain 3,56]
+  log-filter-signal     AI信号搜索（按类型/时间区间/触发次数）   [--chain 3,56] [--type s15|s300|kline|whale] [--begin <unix>] [--end <unix>] [--min <n>] [--max <n>] [--page 0] [--size 500]
   log-get-hot           查询五分钟/1小时热门代币榜单         [--chain 3,56] [--group 5m|1h]
   log-get-token-info    查询代币详情，包括八大实时持仓指标     --token <addr> [--chain 3]
   log-get-token-signal  查询某一个代币所有历史信号，包括【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】    --token <addr> [--chain 3]
@@ -85,6 +86,22 @@ def main():
         chain  = opts['chain'].split(',') if 'chain' in opts else None
         res    = api.get_all_signal(chain=chain)
         data   = helpers.unwrap(res, 'get-24h-signals')
+        native_prices = helpers.get_cached_native_prices()
+        print(json.dumps(helpers.fmt_signals(data, native_prices), ensure_ascii=False, indent=2, sort_keys=True))
+
+    elif cmd == 'log-filter-signal':
+        chain = opts['chain'].split(',') if 'chain' in opts else None
+        res   = api.filter_signal(
+            chain             = chain,
+            signal_type       = opts.get('type'),
+            signal_begin_time = int(opts['begin']) if 'begin' in opts else None,
+            signal_end_time   = int(opts['end'])   if 'end'   in opts else None,
+            min_signal_count  = int(opts['min'])   if 'min'   in opts else None,
+            max_signal_count  = int(opts['max'])   if 'max'   in opts else None,
+            page_num          = int(opts['page'])  if 'page'  in opts else None,
+            page_size         = int(opts['size'])  if 'size'  in opts else None,
+        )
+        data = helpers.unwrap(res, 'filter-signal')
         native_prices = helpers.get_cached_native_prices()
         print(json.dumps(helpers.fmt_signals(data, native_prices), ensure_ascii=False, indent=2, sort_keys=True))
 

@@ -112,6 +112,27 @@ def get_token_signal(index_token_address: str, chain: str = None) -> dict:
     return call_skill('get_token_signal', body)
 
 
+def filter_signal(chain: list = None, signal_type: str = None, signal_begin_time: int = None,
+                  signal_end_time: int = None, min_signal_count: int = None,
+                  max_signal_count: int = None, page_num: int = None, page_size: int = None) -> dict:
+    """AI信号搜索 — 2 credits
+
+    signal_begin_time 文档标注为选填，但服务端未传时返回 data=null，因此这里
+    客户端兜底默认回退到 24 小时前，确保始终能拿到数据。
+    """
+    params = {
+        'signal_begin_time': signal_begin_time if signal_begin_time is not None else int(time.time()) - 86400,
+    }
+    if signal_type is not None:      params['signal_type']      = signal_type
+    if signal_end_time is not None:  params['signal_end_time']  = signal_end_time
+    if min_signal_count is not None: params['min_signal_count'] = min_signal_count
+    if max_signal_count is not None: params['max_signal_count'] = max_signal_count
+    if page_num is not None:         params['page_num']         = page_num
+    if page_size is not None:        params['page_size']        = page_size
+
+    return call_skill('filter_signal', {'chain': chain or ['3'], 'params': params})
+
+
 def get_follow_tx(chain: list = None) -> dict:
     """关注地址交易 — 2 credits"""
     body = {}

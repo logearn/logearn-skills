@@ -86,6 +86,7 @@ curl 'https://api.logearn.com /web_cache/get_native_price'
 |-----------|------|---------------|---------|
 | `get_all_signal` | 查询24小时内所有【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】信号以及相关代币 | **3 credits** | — |
 | `get_token_signal` | 查询某一个代币所有历史信号，包括【早期精选、 回撤反弹、休眠后苏醒、蓝筹共振】 | 2 credit      | `index_token_address`,`chain` |
+| `filter_signal` | 多链 AI 信号搜索，支持按信号类型/时间区间/触发次数筛选 | **2 credits** | — |
 | `get_follow_tx` | 查询关注的地址最新链上交易 | **2 credits** | — |
 | `get_hot_list` | 查询五分钟/1小时热门代币榜单 | 1 credit      | — |
 | `get_kline_list` | 获取代币的历史K线数据| 1 credit      | `base`,`chain` |
@@ -274,6 +275,76 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 
 ---
 
+#### Skill: `filter_signal` — AI信号搜索
+
+多链 AI 信号搜索，支持按信号类型（鲸鱼/K线/15秒/5分钟）过滤，可分页查询历史信号。
+
+**请求参数**:
+
+| 字段                         | 类型         | 必填 | 默认值 | 说明                                      |
+|----------------------------|------------|------|--------|-----------------------------------------|
+| `chain`                    | `string[]` | 否 | `["3"]` | 链 ID 列表（3=Solana，56=BSC）                |
+| `params`                   | `object`   | 否 | `{}` | 查询参数                                    |
+| `params.signal_type`       | `string`   | 否 | `"whale"` | 信号类型：`s15` / `s300` / `kline` / `whale` |
+| `params.signal_begin_time` | `long`     | 否 | — | 信号开始时间（Unix 秒），最早180天前。⚠️ 实测未传时服务端返回 `data=null`，建议总是显式传入 |
+| `params.signal_end_time`   | `long`     | 否 | — | 信号结束时间（Unix 秒），闭区间                      |
+| `params.min_signal_count`  | `int`      | 否 | — | 大于等于min_signal_count                    |
+| `params.max_signal_count`  | `int`      | 否 | — | 小于等于max_signal_count                    |
+| `params.page_num`          | `integer`  | 否 | `0` | 页码（从 0 开始）                              |
+| `params.page_size`         | `integer`  | 否 | `500` | 每页条数（最大 500）                            |
+
+**signal_type 可选值**:
+
+| 值 | 说明 |
+|----|------|
+| `s15` | 精选信号 |
+| `s300` | 苏醒信号 |
+| `kline` | 回撤反弹信号 |
+| `whale` | 蓝筹顶级赢家共振 |
+
+**请求示例**:
+
+```bash
+# 默认参数（查询鲸鱼信号）
+curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/filter_signal" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# 查询K线信号，指定时间范围和分页
+curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/filter_signal" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chain": ["3"],
+    "params": {
+      "signal_type": "kline",
+      "signal_begin_time": 1718380800,
+      "page_num": 0,
+      "page_size": 100
+    }
+  }'
+
+# 多链查询15秒级信号
+curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/filter_signal" \
+  -H "X-Api-Key: $LOGEARN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chain": ["3", "56"],
+    "params": {
+      "signal_type": "s15",
+      "page_size": 200
+    }
+  }'
+```
+
+**响应结构**:
+
+```json
+  { "...包含信号数据的 Token 对象, 见文末数据对象说明" },  
+```
+
+---
 
 #### Skill: `get_follow_tx` — 查询关注地址交易明细
 
