@@ -209,13 +209,13 @@ logearn_curl get_native_price '{}'
 | `get_hot_list` | 查询五分钟/1小时热门代币榜单 | 1 credit      | — |
 | `get_kline_list` | 获取代币的历史K线数据| 1 credit      | `base`,`chain` |
 | `get_token_info` | 查询代币详情，包括八大实时持仓指标  | 1 credit      | `params.base`, `chain` |
-| `get_coin_balance` | 查询所有交易账号余额 | **免费**（1次/s）| `address` |
-| `get_wallet_positions` | 所有交易账户仓位查询 | **免费**（1次/s）  | `address` |
+| `get_coin_balance` | 查询所有交易账号余额 | **免费**（1次/s）| 无必填（`address` 可选，不传 = 账户下所有钱包） |
+| `get_wallet_positions` | 所有交易账户仓位查询 | **免费**（1次/s）  | 无必填（`address` 可选，不传 = 账户下所有钱包） |
 | `solana_swap` | Solana 交易 | **免费**（1次/s）  | `caller`、`eventType`、`action` |
 | `bsc_swap` | BSC 交易 | **免费**（1次/s）  | `caller`、`eventType`、`action` |
 | `limit_order` | 挂限价单 | **免费**（1次/s）  | `caller`、`tokenAddress`、`action` |
-| `get_limit_orders` | 查询所有限价单 | **免费**（1次/s）  | `address` |
-| `get_trade_logs` | 查询所有交易明细 | **免费**（1次/s）  | `address` |
+| `get_limit_orders` | 查询所有限价单 | **免费**（1次/s）  | 无必填（`address` 可选，不传 = 账户下所有钱包） |
+| `get_trade_logs` | 查询所有交易明细 | **免费**（1次/s）  | 无必填（`address` 可选，不传 = 账户下所有钱包） |
 
 ---
 

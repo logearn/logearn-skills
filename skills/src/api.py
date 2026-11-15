@@ -317,7 +317,7 @@ def filter_signal(chain: list = None, signal_type: str = None, signal_begin_time
 # 账户读（需 X-Signature）
 # ---------------------------------------------------------------------------
 
-def get_coin_balance(address: str, chain: int = None) -> dict:
+def get_coin_balance(address: str = None, chain: int = None) -> dict:
     """账号Coin余额 — 1 credit（账户读，需签名）"""
     body = {}
     if chain is not None:   body['chain']   = chain
