@@ -15,6 +15,7 @@ urllib.request 会自动读 https_proxy / HTTPS_PROXY 环境变量。
 import hashlib
 import hmac
 import json
+import sys
 import os
 import secrets
 import time
@@ -468,7 +469,7 @@ def _find_token(node):
 
 def _token_price_usd(info: dict, native_usd, native_decimals: int):
     """单个 token 的 USD 价，口径同 fmt_token_info：优先 main_pool.mcp（USD 市值）/ 归一化总量，
-    否则 main_pool.last_price（原生币计价，按精度差换算）× 原生币 USD 价。取不到返回 0。"""
+    否则 main_pool.last_price（币本位，每个 token 值多少原生币）× 原生币 USD 价。取不到返回 0。"""
     from decimal import Decimal
     tdec = int(info['decimals'])
     supply = Decimal(str(info['total_supply'])) / Decimal(10) ** tdec          # total_supply 是未归一化的原始值
@@ -480,9 +481,8 @@ def _token_price_usd(info: dict, native_usd, native_decimals: int):
     mcp = Decimal(str(mp.get('mcp') or 0))
     if mcp > 0 and supply > 0:
         return mcp / supply
-    last = Decimal(str(mp.get('last_price') or info.get('latest_price') or 0))
-    scale = Decimal(10) ** (tdec - native_decimals)
-    return last * scale * native_usd
+    last = Decimal(str(mp.get('last_price') or info.get('latest_price') or 0))   # 已是币本位：每个 token 值多少原生币
+    return last * native_usd
 
 
 def estimate_min_out(*, chain_id: int, token_in: str, token_out: str, amount_in: str, slippage: float = DEFAULT_SLIPPAGE) -> dict:
@@ -562,10 +562,55 @@ def build_limit_buy_auth(*, chain_id: int, wallet: str, token_in: str, token_out
     return {'clientId': client_id, 'auth': auth, 'authSignature': base64.b64encode(sig).decode('ascii')}
 
 
+def prepare_limit_action(*, chain_id: int, token: str, event_type: int, action: dict, mcap=None, price=None) -> dict:
+    """限价单触发条件，口径与网页一致：只用价格触发（limitType=1），limitNumber = 币本位价格（每个 token 值多少原生币）。
+    市值触发（limitType=2）不支持：要按市值挂单，用 mcap（美元市值），这里按总量和原生币价换算成价格。
+    和网页一样校验：买单目标价必须低于现价（direction=1），卖单必须高于现价（direction=2），否则报错、不下单。"""
+    from decimal import Decimal
+    chain_id = int(chain_id)
+    action = dict(action or {})
+    if int(action.get('limitType') or 1) == 2:
+        raise ApiError('不支持 limitType=2（市值触发）：请用 --mcap <美元市值>，会换算成币本位价格再下单')
+    info = _find_token((get_token_info(base=token, chain=[chain_id]) or {}).get('data'))
+    if not info:
+        raise ApiError('取不到该代币的详情，无法校验限价单的触发价')
+    native_usd = Decimal(str(get_native_price(chain_id).get('price') or 0))
+    price_usd = _token_price_usd(info, native_usd, _NATIVE_DECIMALS[chain_id])
+    if native_usd <= 0 or price_usd <= 0:
+        raise ApiError('价格数据不可用，无法校验限价单的触发价')
+    supply = Decimal(str(info['total_supply'])) / Decimal(10) ** int(info['decimals'])
+    cur = price_usd / native_usd
+    if mcap is not None:
+        target = Decimal(str(mcap)) / supply / native_usd
+    elif price is not None:
+        target = Decimal(str(price))
+    elif action.get('limitNumber') is not None:
+        target = Decimal(str(action['limitNumber']))
+    else:
+        raise ApiError('需要 --mcap（美元市值）或 --price（币本位价格），或 action.limitNumber')
+    if target <= 0:
+        raise ApiError('触发价必须大于 0')
+    cur_mcap = price_usd * supply
+    target_mcap = target * native_usd * supply
+    if event_type == 1 and target >= cur:
+        raise ApiError(f'买单的目标价必须低于现价（目标市值 ≈ ${target_mcap:,.0f}，当前市值 ≈ ${cur_mcap:,.0f}）')
+    if event_type != 1 and target <= cur:
+        raise ApiError(f'卖单的目标价必须高于现价（目标市值 ≈ ${target_mcap:,.0f}，当前市值 ≈ ${cur_mcap:,.0f}）')
+    action['limitNumber'] = float(target)
+    action['limitType'] = 1
+    action['direction'] = 1 if event_type == 1 else 2
+    print(f'[limit] 触发价 {float(target):.6g}（币本位）≈ 市值 ${target_mcap:,.0f}，当前市值 ≈ ${cur_mcap:,.0f}，'
+          f'{"买单：跌到目标价触发" if event_type == 1 else "卖单：涨到目标价触发"}', file=sys.stderr)
+    return action
+
+
 def limit_order(caller: str, token_address: str, action: dict,
                 chain_id: int = None, event_type: int = None,
-                expired_at: int = None) -> dict:
-    """挂限价单  real funds（需签名）。买单（event_type=1，默认）自动本地签 LIMIT_BUY 授权；卖单不需要。"""
+                expired_at: int = None, mcap=None, price=None) -> dict:
+    """挂限价单  real funds（需签名）。买单（event_type=1，默认）自动本地签 LIMIT_BUY 授权；卖单不需要。
+    触发条件只支持价格触发（同网页）：mcap（美元市值）或 price（币本位价格）二选一，或 action.limitNumber（币本位价格）。"""
+    action = prepare_limit_action(chain_id=chain_id if chain_id is not None else 3, token=token_address,
+                                  event_type=event_type if event_type is not None else 1, action=action, mcap=mcap, price=price)
     body = {'caller': caller, 'tokenAddress': token_address, 'action': action}
     if chain_id is not None:   body['chainId']   = chain_id
     if event_type is not None: body['eventType'] = event_type

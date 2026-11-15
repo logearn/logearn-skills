@@ -45,7 +45,7 @@ python skills/logearn-cli.py <命令> [参数]
 | `log-get-limit-orders` | 限价单列表（免费） | `--address`（可选） |
 | `log-swap-solana` | Solana 买卖 （免费，需 Secret + 交易意图） | `--caller` `--event` `--action`（可选 `--slippage` `--min-out`） |
 | `log-swap-bsc` | BSC 买卖 （免费，需 Secret + 交易意图） | `--caller` `--event` `--action`（可选 `--slippage` `--min-out`） |
-| `log-limit-order` | 挂限价单（买单自动签授权，需 Secret） | `--caller` `--token` `--action` |
+| `log-limit-order` | 挂限价单（买单自动签授权，需 Secret） | `--caller` `--token` `--action` + `--mcap` 或 `--price` |
 | `log-quota` | 查询 Credit 余额（免费） | — |
 
 ---

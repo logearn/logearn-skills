@@ -968,11 +968,13 @@ logearn_curl bsc_swap '{
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `limitNumber` | `float` | 触发条件目标值（币本位价格或者市值，已处理精度）|
-| `limitType` | `integer` | 参考类型：`1` = 价格触发，`2` = 市值触发 |
-| `direction` | `integer` | 触发方向：`1` = 向上触发（买单：等待价格下跌到目标价再买），`2` = 向下触发（卖单：等待价格上涨到目标价再卖） |
+| `limitNumber` | `float` | 触发价：**币本位价格**，即每个代币值多少原生币（SOL / BNB），已处理精度，与网页一致 |
+| `limitType` | `integer` | 固定 `1`（价格触发）。**不支持**市值触发（`2`）：按市值挂单时，先把目标市值换算成价格（见下） |
+| `direction` | `integer` | 买单 `1`（价格跌到 `limitNumber` 时触发），卖单 `2`（价格涨到 `limitNumber` 时触发） |
 
-> **方向说明**：买单通常等价格跌到目标位（`direction=1`，价格从上方穿越 `limitNumber`）；卖单通常等价格涨到目标位（`direction=2`，价格从下方穿越 `limitNumber`）。
+> **校验规则**：买单的触发价必须**低于**现价，卖单必须**高于**现价，否则会被拒绝或无法按预期触发。
+>
+> **按市值挂单**：`limitNumber = 目标市值（USD） ÷ 代币总量（归一化） ÷ 原生币 USD 价`。用 CLI 的 `--mcap <美元市值>`，或 SDK 的 `limit_order(..., mcap=...)`，会自动换算、自动设置 `limitType=1` 和 `direction`，并校验买卖方向。
 
 **`action` 止盈止损字段**（可选，与 swap 接口完全相同）:
 

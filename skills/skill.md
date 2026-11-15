@@ -91,7 +91,7 @@ log-get-limit-orders   限价单列表                  [--address <wallet>] [--
 ```
 log-swap-solana        Solana 买卖                 --caller <wallet> --event buy|sell --action '<json: tokenIn,tokenOut,amountIn>' [--slippage 0.5] [--min-out <n>]
 log-swap-bsc           BSC 买卖                    --caller <wallet> --event buy|sell --action '<json: tokenIn,tokenOut,amountIn>' [--slippage 0.5] [--min-out <n>]
-log-limit-order        挂限价单（买单自动签授权）  --caller <wallet> --token <addr> --action '<json>' [--chain 3] [--event 1|2]
+log-limit-order        挂限价单（买单自动签授权）  --caller <wallet> --token <addr> --action '<json>' (--mcap <美元市值> | --price <币本位价>) [--chain 3] [--event 1|2]
 ```
 
 ### 账户管理

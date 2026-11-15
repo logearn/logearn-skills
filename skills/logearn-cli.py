@@ -58,7 +58,7 @@ Data:
 Trade  real funds:
   log-swap-solana       Solana 买卖                    --caller <wallet> --event buy|sell --action '<json:tokenIn,tokenOut,amountIn>' [--slippage 0.5] [--min-out <n>]
   log-swap-bsc          BSC 买卖                       --caller <wallet> --event buy|sell --action '<json:tokenIn,tokenOut,amountIn>' [--slippage 0.5] [--min-out <n>]
-  log-limit-order       挂限价单（买单自动签授权）     --caller <wallet> --token <addr> --action '<json>' [--chain 3] [--event 1|2]
+  log-limit-order       挂限价单（买单自动签授权）     --caller <wallet> --token <addr> --action '<json>' (--mcap <美元市值> | --price <币本位价>) [--chain 3] [--event 1|2]
 
 Account:
   log-quota             配额余额
@@ -320,7 +320,7 @@ def main():
     elif cmd == 'log-limit-order':
         if 'caller' not in opts: die('--caller <wallet> required')
         if 'token'  not in opts: die('--token <address> required')
-        if 'action' not in opts: die("--action '{\"limitNumber\":...}' required")
+        if 'action' not in opts: die("--action '{\"tokenIn\":...,\"tokenOut\":...,\"amountIn\":...}' required（再加 --mcap <美元市值> 或 --price <币本位价>）")
         try:
             res  = api.limit_order(
                 caller        = opts['caller'],
@@ -329,6 +329,8 @@ def main():
                 chain_id      = int(opts['chain']) if 'chain' in opts else None,
                 event_type    = int(opts['event']) if 'event' in opts else None,
                 expired_at    = int(opts['expires']) if 'expires' in opts else None,
+                mcap          = opts.get('mcap'),
+                price         = opts.get('price'),
             )
         except api.ApiError as e:
             die(str(e))
