@@ -4,6 +4,7 @@ LogEarn — response formatting helpers
 
 import json
 import os
+import tempfile
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -17,7 +18,9 @@ from tools.fmt_limit_order_info import format_limit_order as fmt_tools_format_li
 # Native price cache  (.cache/native_prices.json, TTL = 10 min)
 # ---------------------------------------------------------------------------
 
-_CACHE_DIR        = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.cache')
+# 缓存目录可用 LOGEARN_CACHE_DIR 指定；默认放系统临时目录。不能放在代码目录下：容器里代码目录归 root，
+# 非 root 进程写不进去（线上报 Permission denied，导致所有 CA 查询失败）。
+_CACHE_DIR        = os.environ.get('LOGEARN_CACHE_DIR') or os.path.join(tempfile.gettempdir(), 'logearn-cache')
 _PRICE_CACHE_FILE = os.path.join(_CACHE_DIR, 'native_prices.json')
 _PRICE_CACHE_TTL  = 600  # seconds
 
@@ -37,6 +40,17 @@ def _read_price_cache(max_age: float):
     return None
 
 
+def _write_price_cache(prices: dict) -> None:
+    """写缓存只是优化：写失败（目录不可写等）只记一行日志，不能让价格查询本身失败。"""
+    try:
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+        with open(_PRICE_CACHE_FILE, 'w') as f:
+            json.dump({str(k): v for k, v in prices.items()} | {'_ts': time.time()}, f)
+    except OSError as e:
+        import sys
+        print(f'[logearn] native price cache not written: {e}', file=sys.stderr)
+
+
 def get_cached_native_prices() -> dict:
     """Return {3: sol_usd, 56: bnb_usd}。缓存 10 分钟；刷新失败时只允许用 1 小时内的旧缓存，
     再旧 / 没有就抛 ApiError——绝不返回空值或写死价格（格式化层对缺失价格会按 1.0 算市值，结果会静默错误）。"""
@@ -49,9 +63,7 @@ def get_cached_native_prices() -> dict:
         prices = {3: float(res.get('sol', 0) or 0), 56: float(res.get('bnb', 0) or 0)}
         if not all(v > 0 for v in prices.values()):
             raise _api.ApiError(f'native price invalid: {prices}')
-        os.makedirs(_CACHE_DIR, exist_ok=True)
-        with open(_PRICE_CACHE_FILE, 'w') as f:
-            json.dump({str(k): v for k, v in prices.items()} | {'_ts': time.time()}, f)
+        _write_price_cache(prices)
         return prices
     except Exception as e:
         stale = _read_price_cache(_STALE_MAX_AGE)
