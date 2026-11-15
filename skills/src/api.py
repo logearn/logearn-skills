@@ -388,6 +388,19 @@ def _canonical_json(v) -> str:
     raise ValueError('canonical JSON: unsupported value')
 
 
+def usd_string(usd) -> str:
+    """USD → TEE 接受的十进制字符串：最多 6 位小数，向上取整（只作下界，宁高勿低），去掉末尾的 0；与前端 usdString 一致。
+    TEE 的 parse_usd 不接受超过 6 位小数、科学计数法、负数。"""
+    from decimal import Decimal, ROUND_CEILING
+    v = Decimal(str(usd if usd not in (None, '') else 0))
+    if v < 0:
+        raise ApiError('amount_usd 不能为负数')
+    micro = int((v * 1_000_000).to_integral_value(rounding=ROUND_CEILING))
+    whole, frac = divmod(micro, 1_000_000)
+    f = str(frac).zfill(6).rstrip('0')
+    return f'{whole}.{f}' if f else str(whole)
+
+
 def build_trade_auth(*, chain_id: int, wallet: str, token_in: str, token_out: str, amount_in: str,
                      min_amount_out: str, amount_usd: str = '0', solana: bool = False) -> dict:
     """本地签交易意图（TradeIntent v2，10 分钟有效），返回 params.teeAuth = {clientId, intent, intentSignature}。
@@ -405,7 +418,7 @@ def build_trade_auth(*, chain_id: int, wallet: str, token_in: str, token_out: st
         'v': 2, 'kind': 'TRADE', 'min_amount_out': str(min_amount_out),
         'account_id': int(account_id), 'client_id': client_id, 'chain_id': int(chain_id),
         'wallet': addr(wallet), 'token_in': addr(token_in), 'token_out': addr(token_out),
-        'amount_in': str(amount_in), 'amount_usd': str(amount_usd or '0'),
+        'amount_in': str(amount_in), 'amount_usd': usd_string(amount_usd),
         'ts': ts, 'expires_at': ts + 600, 'nonce': 'tr-' + secrets.token_hex(16),
     }
     if solana:
@@ -506,7 +519,7 @@ def estimate_min_out(*, chain_id: int, token_in: str, token_out: str, amount_in:
     min_out = int(out * (Decimal(1) - Decimal(str(slippage))) * Decimal('0.5'))
     if min_out <= 0:
         raise ApiError('金额太小，估算的最少获得量为 0')
-    return {'min_amount_out': str(min_out), 'amount_usd': format(usd, 'f'), 'expected_out': str(int(out))}
+    return {'min_amount_out': str(min_out), 'amount_usd': usd_string(usd), 'expected_out': str(int(out))}
 
 
 def solana_swap(caller: str, event_type: str, action: dict, tee_auth: dict = None) -> dict:
