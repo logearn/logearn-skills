@@ -824,12 +824,12 @@ logearn_curl get_trade_logs '{
 - `intentSignature` = 对 `"logearn/tee/trade-intent/v1|" + canonical_json(intent)` 做 ECDSA P-256 / SHA-256，输出 r‖s 的**标准 base64**。`canonical_json`：键按 ASCII 升序、无空白、仅安全整数（大数用十进制字符串）。
 - 意图 10 分钟有效。若账户开启了「高级安全模式」且金额超阈值，API 无法提供二次验证，会被拒绝，请到网页操作。
 - CLI 的 `log-swap-solana` / `log-swap-bsc` 已自动完成：**只给 CA 和金额即可**。
-- **`min_amount_out` 的计算**：先调公开读 `get_token_info` 取代币的 `mcap`、`total_supply`、`decimals`，再调 `get_native_price` 取原生币价格，按下面公式算：
-  - 单价（USD）= `mcap / total_supply`
+- **`min_amount_out` 的计算**：先调公开读 `get_token_info` 取代币的 `main_pool`（`mcp` 为 USD 市值，`last_price` 为原生币计价）、`total_supply`（未归一化的原始值）、`decimals`，再调 `get_native_price` 取原生币价格，按下面公式算：
+  - 归一化总量 = `total_supply / 10^代币精度`；单价（USD）= `main_pool.mcp / 归一化总量`；没有 `mcp` 时用 `last_price × 10^(代币精度 − 原生币精度) × 原生币价`
   - 买入：预期获得量 = `amountIn / 10^原生币精度 × 原生币价 / 单价 × 10^代币精度`
   - 卖出：预期获得量 = `amountIn / 10^代币精度 × 单价 / 原生币价 × 10^原生币精度`
   - `min_amount_out = 预期获得量 × (1 − 滑点) × 0.5`，向下取整，必须 ≥ 1。滑点默认 **50%**（`--slippage 0.3` 即 30%）。
-  - 取不到价格或金额太小导致结果为 0 时，CLI 直接报错，不会下单。也可以用 `--min-out` 直接指定。
+  - 取不到价格，或结果取整后为 0 时，CLI 直接报错，不会下单。也可以用 `--min-out` 直接指定。
 - `amount_usd` 由同一份价格算出（买入 = 原生币金额 × 原生币价；卖出 = 代币数量 × 单价），也可用 `--usd` 覆盖。
 
 **顶层请求参数**:

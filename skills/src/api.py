@@ -436,9 +436,10 @@ DEFAULT_SLIPPAGE = 0.5
 
 
 def _find_token(node):
-    """在 get_token_info 的嵌套返回里找带 mcap / decimals / total_supply 的 token 字典。"""
+    """在 get_token_info 的嵌套返回里找代币字典：带 decimals、total_supply，且有 main_pool 或 latest_price。"""
     if isinstance(node, dict):
-        if node.get('decimals') is not None and node.get('total_supply') is not None and node.get('mcap') is not None:
+        if node.get('decimals') is not None and node.get('total_supply') is not None \
+                and (node.get('main_pool') or node.get('latest_price') is not None):
             return node
         for v in node.values():
             r = _find_token(v)
@@ -452,8 +453,27 @@ def _find_token(node):
     return None
 
 
+def _token_price_usd(info: dict, native_usd, native_decimals: int):
+    """单个 token 的 USD 价，口径同 fmt_token_info：优先 main_pool.mcp（USD 市值）/ 归一化总量，
+    否则 main_pool.last_price（原生币计价，按精度差换算）× 原生币 USD 价。取不到返回 0。"""
+    from decimal import Decimal
+    tdec = int(info['decimals'])
+    supply = Decimal(str(info['total_supply'])) / Decimal(10) ** tdec          # total_supply 是未归一化的原始值
+    mp = info.get('main_pool')
+    if isinstance(mp, str):
+        try: mp = json.loads(mp)
+        except Exception: mp = {}
+    mp = mp if isinstance(mp, dict) else {}
+    mcp = Decimal(str(mp.get('mcp') or 0))
+    if mcp > 0 and supply > 0:
+        return mcp / supply
+    last = Decimal(str(mp.get('last_price') or info.get('latest_price') or 0))
+    scale = Decimal(10) ** (tdec - native_decimals)
+    return last * scale * native_usd
+
+
 def estimate_min_out(*, chain_id: int, token_in: str, token_out: str, amount_in: str, slippage: float = DEFAULT_SLIPPAGE) -> dict:
-    """用 token 详情（市值 / 总量 / 精度）与 native 价格估算 min_amount_out，口径与网页一致：
+    """用 token 详情（main_pool 的市值 / 价格、总量、精度）与 native 价格估算 min_amount_out，口径与网页一致：
     预期获得量 × (1 − 滑点) × 0.5（防灾下限；用户滑点本身由后端精确上链）。默认滑点 50%。
     返回 {min_amount_out, amount_usd, expected_out}；估不出（取不到价格 / 金额太小）抛 ApiError，不盲签。"""
     from decimal import Decimal
@@ -470,11 +490,10 @@ def estimate_min_out(*, chain_id: int, token_in: str, token_out: str, amount_in:
         raise ApiError('取不到该代币的详情（价格），无法估算最少获得量')
     nres = get_native_price(chain_id)
     native_usd = Decimal(str(nres.get('price') or 0))
-    supply = Decimal(str(info['total_supply'])); mcap = Decimal(str(info['mcap']))
-    if native_usd <= 0 or supply <= 0 or mcap <= 0:
-        raise ApiError('价格数据不可用，无法估算最少获得量')
-    price_usd = mcap / supply                               # 单个 token 的 USD 价
     tdec = int(info['decimals']); ndec = _NATIVE_DECIMALS[chain_id]
+    price_usd = _token_price_usd(info, native_usd, ndec)                    # 单个 token 的 USD 价
+    if native_usd <= 0 or price_usd <= 0:
+        raise ApiError('价格数据不可用，无法估算最少获得量')
     amt = Decimal(str(amount_in))
     if buying:
         native_amt = amt / Decimal(10) ** ndec
