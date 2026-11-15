@@ -6,6 +6,7 @@ LogEarn WebSocket API 提供 5 种实时数据流，无需轮询即可获取最�
 
 ## 连接端点
 
+
 ```
 wss://logearn.com/logearn/ws-skill?apiKey=<your_api_key>
 ```
@@ -345,7 +346,7 @@ from tools.ws.fmt_notification_stream import format_notification_stream_msg
 
 
 async def main():
-    uri = "wss://logearn.com/logearn/ws-skill?apiKey=sk_YOUR_KEY"
+    uri = "wss://logearn.com/logearn/ws-skill?apiKey=lk_YOUR_KEY"
     async with websockets.connect(uri) as ws:
         # 订阅 Solana 实时行情 + 全量信号
         await ws.send(json.dumps({"type": "subscribe", "topic": "/token_stream_v2:3"}))
@@ -377,7 +378,7 @@ asyncio.run(main())
 
 ```bash
 # 设置 API Key 后直接运行
-export LOGEARN_API_KEY="sk_xxxxxxxx"
+export LOGEARN_API_KEY="lk_xxxxxxxx"
 /usr/bin/python3 test_ws.py
 ```
 

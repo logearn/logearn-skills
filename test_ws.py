@@ -2,7 +2,7 @@
 test_ws.py — LogEarn WebSocket 5 种数据流本地测试
 
 使用方法：
-  1. 设置环境变量：export LOGEARN_API_KEY=sk_xxx
+  1. 设置环境变量：export LOGEARN_API_KEY=lk_xxx（可选：LOGEARN_WS_BASE 指定环境，LOGEARN_ACCOUNT_ID 用于 Case 3）
   2. 运行：python test_ws.py
   3. 当前只开启 Case 1（token_stream_v2），其余四个已注释。
      挨个取消注释 / 注释来切换测试目标。
@@ -15,7 +15,7 @@ import json
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'skills', 'src'))
 
 from tools.ws.fmt_token_stream        import format_token_stream_msg
 from tools.ws.fmt_notification_stream import format_notification_stream_msg
@@ -25,8 +25,8 @@ from tools.ws.fmt_tx_stream           import format_tx_stream_msg
 
 import websockets
 
-API_KEY  = "xxxxxxxx"
-BASE     = "wss://dev.logearn.com/logearn"
+API_KEY  = os.environ.get("LOGEARN_API_KEY", "xxxxxxxx")
+BASE     = os.environ.get("LOGEARN_WS_BASE", "wss://api.logearn.com/logearn")
 WS_URI   = f"{BASE}/ws-skill?apiKey={API_KEY}"
 
 MAX_MESSAGES = 10          # 每个 case 收到多少条后自动退出，方便快速验证
@@ -129,7 +129,7 @@ async def test_notification_stream():
 # ===========================================================================
 # Case 3   关注地址实时交易  /notification_stream/${uid}
 # ===========================================================================
-FOLLOW_UID = "xxxxx"    # 登录 https://logearn.com 获取你的 uid
+FOLLOW_UID = os.environ.get("LOGEARN_ACCOUNT_ID", "xxxxx")    # 登录 https://logearn.com 获取你的 uid
 
 async def test_follow_stream():
     """
@@ -193,7 +193,7 @@ async def test_tx_stream():
 # ===========================================================================
 async def main():
     if not API_KEY:
-        print("[ERROR] 请先设置环境变量：export LOGEARN_API_KEY=sk_xxx")
+        print("[ERROR] 请先设置环境变量：export LOGEARN_API_KEY=lk_xxx")
         return
 
     # await test_token_stream()          # Case 1  ✅ 当前运行

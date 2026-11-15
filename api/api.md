@@ -6,17 +6,93 @@ LogEarn 作为专注筹码分析的交易平台，提供了动态筹码分析，
 
 ## 前置条件
 
-使用前请设置以下环境变量：
-- `LOGEARN_API_KEY`（必填）— 您的 LogEarn Open API Key（格式：`sk_xxxxxxxx`），登录 https://logearn.com  官网 获取。
-- `LOGEARN_API_BASE`（可选）— API 基础地址，默认为 `https://api.logearn.com /logearn`
+- `LOGEARN_API_KEY`（必填）— LogEarn API Key（格式 `lk_xxxxxxxx`，**不是秘密**，可随时复制）。登录 https://logearn.com 「API」页创建；创建时浏览器会临时生成一对 P-256 密钥，需要账户已开启二次验证。
+- `LOGEARN_API_SECRET`（账户读 / 交易才需要）— 创建时浏览器生成的 **ECDSA P-256 私钥（PKCS8 PEM）**，**只显示一次**，服务端不保存。丢失无法找回：到网页删除该 key 重新创建。
+- `LOGEARN_CLIENT_KEY`（必填）— `X-Request-Id` 的签名公钥（公开值，全站同一个），网页「复制配置」一并给出；公钥轮换后需重新复制配置。
+- `LOGEARN_CLIENT_ID`、`LOGEARN_ACCOUNT_ID`（仅交易需要）— 网页「复制配置」会一并给出。
+- `LOGEARN_API_BASE`（可选）— 默认 `https://api.logearn.com/logearn`。
 
-## 鉴权方式
+**Open API 的边界**：不能提现、不能加白名单、不能改安全设置、不能导出私钥；交易只作用于站内钱包。一个 key 对应一对密钥，不能换；要换就删除重建。权限可随时在网页修改（登录即可）。删除 key 需要二次验证，会立即失效并撤销对应的 TEE 证书。证书有效期 365 天，到期后不能交易（公开读 / 账户读不受影响）。用户若开启了「高级安全模式」，超过阈值的交易 API 无法完成（需要二次验证），请到网页操作。建议使用专用小额钱包；Secret 泄露请立刻到网页删除该 key。不要把 Secret 贴进聊天、截图或提交进代码仓库。
 
-根据接口类型使用以下鉴权方式：
+## 鉴权方式（三档）
 
-| 模式 | 适用接口 | 方式 |
-|------|-----------|-----|
-| API Key | 所有 `/call/*`（GET/DELETE） | 请求头 `X-Api-Key: sk_xxx` |
+**每个请求都必须带规范请求头**（缺失或不合法的请求会被拒绝）：
+
+| 头 | 说明 |
+|----|------|
+| `X-Api-Key` | API Key（keyId） |
+| `User-Agent` | 自定义，形如 `logearn-cli/2.0.0`、`LogearnBot/1.0`；**不能用 `python-requests`、`curl`、`okhttp`、`Go-http-client` 等库默认 UA**，自己写代码也要自定义 |
+| `X-Client-Instance` | 本机固定的任意可见 ASCII 字符串（≤80，建议 16 位 hex，首次生成后持久化），参与 `X-Request-Id` 签名 |
+| `X-Request-Id` | `v1.<毫秒时间戳13位>.<12位hex>.<16位签名hex>`，**每个请求换新的**。签名 = `HMAC-SHA256(签名公钥, "v1\|ts\|rand\|instance")` 的前 8 字节（hex）。签名公钥即配置里的 `LOGEARN_CLIENT_KEY`（没有匿名取公钥接口）。该公钥是公开值，只用于统一规范与事后排查，不提供保密性 |
+| `X-Signature` | **仅账户读与交易** |
+
+按接口档位决定是否签名：
+
+| 档 | 接口 | 额外要求 |
+|----|------|----------|
+| **公开读 data** | `get_all_signal` / `get_hot_list` / `get_token_info` / `get_token_signal` / `filter_signal` / `get_kline_list` / `get_follow_tx` / `get_native_price` | 无（只要 API Key + 规范请求头） |
+| **账户读 account** | `get_coin_balance` / `get_wallet_positions` / `get_trade_logs` / `get_limit_orders` | `X-Signature` |
+| **交易 trade** | `solana_swap` / `bsc_swap` / `limit_order` | `X-Signature` + 交易授权：市价单 `params.teeAuth`（交易意图），限价买单 `params.teeOrderAuth`（LIMIT_BUY 授权） |
+
+### X-Signature 签名规则
+
+ECDSA P-256 + SHA-256，输出 **r‖s（各 32 字节，IEEE P-1363 / WebCrypto 原生格式）** 的 base64url，用 `LOGEARN_API_SECRET` 私钥签下面这段 UTF-8 文本：
+
+```
+logearn/openapi/req/v1\n
+METHOD\n                      大写，如 POST
+PATH\n                        去掉 context-path /logearn 后的路径，如 /open/api/v1/call/get_wallet_positions
+CANONICAL_QUERY\n             query 的 key / value 各按 RFC3986 严格编码（仅 A-Za-z0-9-_.~ 保留），按 (编码后key, 编码后value) 升序，key=value 以 & 连接；无 query 为空串
+hex(sha256(BODY))\n           请求体原始字节的 sha256 小写 hex；无 body 用 sha256("")
+X-Request-Id\n
+keyId                          即 X-Api-Key
+```
+
+- 账户读 / 交易另有 **±30 秒** 时间窗（以 `X-Request-Id` 里的毫秒时间戳为准）；`X-Request-Id` 本身 ±5 分钟且**同一个只能用一次**。
+- ⚠️ 必须是 **r‖s**，不要用 DER：openssl 默认输出 DER，需要转换；Node 用 `crypto.sign(null/'sha256', msg, {key, dsaEncoding:'ieee-p1363'})`；浏览器 WebCrypto 原生即 r‖s。
+- 签名的 body 必须与实际发送的字节完全一致（先序列化成字节串再签、再原样发送）。
+
+**Python 示例（需要 `pip install cryptography`）**：
+
+```python
+import base64, hashlib, hmac, json, os, secrets, time, urllib.request
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec, utils
+
+BASE = os.environ.get("LOGEARN_API_BASE", "https://api.logearn.com/logearn")
+KEY = os.environ["LOGEARN_API_KEY"]
+SECRET = os.environ["LOGEARN_API_SECRET"].replace("\\n", "\n")
+INSTANCE = "0011223344556677"        # 固定持久化
+UA = "my-app/1.0"                    # 自定义 UA
+
+CLIENT_KEY = os.environ["LOGEARN_CLIENT_KEY"].lower().removeprefix("0x")   # 签名公钥，网页「复制配置」给出
+def client_key():
+    return CLIENT_KEY
+
+def request_id(pub):
+    ts, rand = int(time.time() * 1000), secrets.token_hex(6)
+    mac = hmac.new(pub.encode(), f"v1|{ts}|{rand}|{INSTANCE}".encode(), hashlib.sha256).digest()[:8].hex()
+    return f"v1.{ts}.{rand}.{mac}"
+
+def call(skill, body, signed=False):
+    raw = json.dumps(body).encode()
+    rid = request_id(client_key())
+    headers = {"X-Api-Key": KEY, "User-Agent": UA, "X-Client-Instance": INSTANCE,
+               "X-Request-Id": rid, "Content-Type": "application/json"}
+    if signed:
+        path = f"/open/api/v1/call/{skill}"
+        msg = f"logearn/openapi/req/v1\nPOST\n{path}\n\n{hashlib.sha256(raw).hexdigest()}\n{rid}\n{KEY}"
+        priv = serialization.load_pem_private_key(SECRET.encode(), password=None)
+        r, s = utils.decode_dss_signature(priv.sign(msg.encode(), ec.ECDSA(hashes.SHA256())))
+        headers["X-Signature"] = base64.urlsafe_b64encode(r.to_bytes(32, "big") + s.to_bytes(32, "big")).decode().rstrip("=")
+    req = urllib.request.Request(f"{BASE}/open/api/v1/call/{skill}", data=raw, headers=headers, method="POST")
+    return json.load(urllib.request.urlopen(req, timeout=8))
+
+print(call("get_token_info", {"chain": [3], "params": {"base": "<token>"}}))      # 公开读
+print(call("get_wallet_positions", {}, signed=True))                              # 账户读
+```
+
+> 下文各 Skill 的 `curl` 示例为简洁只写了 `X-Api-Key`：**实际调用还需带上面的规范请求头**（公开读），账户读 / 交易还要 `X-Signature`。推荐直接用 CLI / SDK（`skills/src/api.py` 已封装好全部头与签名）。`curl + openssl` 手写时记得把 openssl 输出的 DER 转成 r‖s。
 
 ## 计费说明
 
@@ -36,19 +112,20 @@ LogEarn 作为专注筹码分析的交易平台，提供了动态筹码分析，
 
 >
 > 完整接口列表：
-> - `GET  /web_cache/get_native_price` — Native 币行情（公开，无需鉴权）
-> - `POST /open/api/v1/call/{skillCode}` — 调用技能
+> - `POST /open/api/v1/call/{skillCode}` — 调用技能（含公开读 `get_native_price`）
 > - `GET  /open/api/v1/quota` — 查询配额余额
+> - `POST/PUT/GET/DELETE /open/api/v1/keys` — API Key 管理（仅网页登录态 + 二次验证，非 API Key 调用）
+> - `GET  /web_cache/get_native_price` — **仅供网页使用**（受浏览器 UA 校验），脚本 / CLI 请改用 `call/get_native_price`
 
 ---
 
-### GET /web_cache/get_native_price — Native 币行情价格（公开）
+### Skill: `get_native_price` — Native 币行情价格（公开读档，`POST /open/api/v1/call/get_native_price`）
 
-获取 SOL/BNB 最新 USD 价格。**无需任何鉴权，不消耗 Credit**。
+获取 SOL/BNB 最新 USD 价格。公开读档：只要 API Key + 规范请求头，不需要签名。返回结构为通用响应的 `data`。取价失败时请返回「价格不可用」，**不要使用写死的价格兜底**（CLI 已删除旧的 `SOL=86 / BNB=630` 回落）。
 
 CLI 会自动在调用信号、热门榜单、Token 详情接口前将该价格缓存（10 分钟有效）用于市値 USD 计算，不需手动调用。
 
-**请求参数**（Query String）:
+**请求参数**（JSON body）:
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -58,10 +135,10 @@ CLI 会自动在调用信号、热门榜单、Token 详情接口前将该价格�
 
 ```bash
 # 只取 SOL 价格
-curl 'https://api.logearn.com /web_cache/get_native_price?chain=3'
+curl -X POST "$LOGEARN_API_BASE/open/api/v1/call/get_native_price" -H "X-Api-Key: $LOGEARN_API_KEY" -H 'Content-Type: application/json' -d '{"chain":3}'   # 另需规范请求头
 
 # 一次取 SOL + BNB
-curl 'https://api.logearn.com /web_cache/get_native_price'
+curl -X POST "$LOGEARN_API_BASE/open/api/v1/call/get_native_price" -H "X-Api-Key: $LOGEARN_API_KEY" -H 'Content-Type: application/json' -d '{}'
 ```
 
 **返回（传 chain 时）**:
@@ -105,7 +182,7 @@ curl 'https://api.logearn.com /web_cache/get_native_price'
 
 技能调用核心接口。每次调用消耗 对应的 **credit**，受 API Key 的 `credits_per_minute` 限速约束。
 
-**鉴权**: 请求头 `X-Api-Key: sk_xxx`
+**鉴权**: 请求头 `X-Api-Key` + 规范请求头；账户读 / 交易另需 `X-Signature`（见上文「鉴权方式」）
 
 **Path 参数**:
 
@@ -759,6 +836,21 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 
 以上路由字段由服务端自动补充，无需手动传入。
 
+**交易授权（必填）**：交易必须携带 `params.teeAuth = {clientId, intent, intentSignature}`——用 `LOGEARN_API_SECRET` **本地签名**的交易意图（TradeIntent v2），由 TEE 独立校验，后端被攻破也伪造不了：
+
+- `clientId` 必须等于该 API Key 登记的设备（`LOGEARN_CLIENT_ID`，`br-` + 24 位小写 hex）。
+- `intent`：`{v:2, kind:"TRADE", account_id, client_id, chain_id, wallet, token_in, token_out, amount_in, amount_usd, min_amount_out, ts, expires_at(=ts+600), nonce, chain_family?("solana")}`；EVM 地址小写，Solana base58 原样；`min_amount_out`（`token_out` 最少获得量，最小单位整数，必须 >0）由**调用方按报价与滑点自行算好**，TEE 会完整解码交易并校验，不信任这里。
+- `intentSignature` = 对 `"logearn/tee/trade-intent/v1|" + canonical_json(intent)` 做 ECDSA P-256 / SHA-256，输出 r‖s 的**标准 base64**。`canonical_json`：键按 ASCII 升序、无空白、仅安全整数（大数用十进制字符串）。
+- 意图 10 分钟有效。若账户开启了「高级安全模式」且金额超阈值，API 无法提供二次验证，会被拒绝，请到网页操作。
+- CLI 的 `log-swap-solana` / `log-swap-bsc` 已自动完成：**只给 CA 和金额即可**。
+- **`min_amount_out` 的计算**：先调公开读 `get_token_info` 取代币的 `mcap`、`total_supply`、`decimals`，再调 `get_native_price` 取原生币价格，按下面公式算：
+  - 单价（USD）= `mcap / total_supply`
+  - 买入：预期获得量 = `amountIn / 10^原生币精度 × 原生币价 / 单价 × 10^代币精度`
+  - 卖出：预期获得量 = `amountIn / 10^代币精度 × 单价 / 原生币价 × 10^原生币精度`
+  - `min_amount_out = 预期获得量 × (1 − 滑点) × 0.5`，向下取整，必须 ≥ 1。滑点默认 **50%**（`--slippage 0.3` 即 30%）。
+  - 取不到价格或金额太小导致结果为 0 时，CLI 直接报错，不会下单。也可以用 `--min-out` 直接指定。
+- `amount_usd` 由同一份价格算出（买入 = 原生币金额 × 原生币价；卖出 = 代币数量 × 单价），也可用 `--usd` 覆盖。
+
 **顶层请求参数**:
 
 | 字段 | 类型 | 必填 | 说明 |
@@ -873,7 +965,16 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 #### Skill: `limit_order` — 挂限价单
 
 
-在 Solana 或 BSC 链上创建限价单，当价格满足 `limitNumber` 条件时自动触发交易。
+
+在 Solana 或 BSC 链上创建限价单，当价格满足 `limitNumber` 条件时自动触发交易。与网页创建限价单走同一条服务端路径。
+
+**交易授权（买单必填）**：限价**买单**（`eventType=1`，默认）必须携带 `params.teeOrderAuth = {clientId, auth, authSignature}`——用 `LOGEARN_API_SECRET` 本地签名的 LIMIT_BUY 授权，触发时由 TEE 重新验签；**卖单不需要授权**。
+
+- `clientId`：必须等于该 API Key 登记的设备（`LOGEARN_CLIENT_ID`）。
+- `auth`：`{v:1, kind:"LIMIT_BUY", account_id, client_id, chain_id, chain_family?("solana"), wallet, token_in, token_out, amount_in, order_id("lo-"+24位hex), ts, expires_at(=ts+7天)}`；EVM 地址小写，Solana base58 原样。钱包、两个币、金额必须与订单 `caller` / `action.tokenIn` / `action.tokenOut` / `action.amountIn` 完全一致。
+- `authSignature` = 对 `"logearn/tee/limit-buy/v1|" + canonical_json(auth)` 做 ECDSA P-256 / SHA-256，输出 r‖s 的**标准 base64**（`canonical_json` 规则同交易意图）。
+- 订单有效期与授权一致（最长 7 天，服务端以授权为准），到期后订单失效，需要重新创建。
+- CLI 的 `log-limit-order` 会自动完成签名。
 
 **请求参数**:
 
@@ -932,6 +1033,8 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
   }'
 ```
 
+> 上面的请求体为简洁起见省略了 `params.teeOrderAuth`（买单必填，见上文「交易授权」）；用 CLI 的 `log-limit-order` 时会自动生成。
+
 **响应结构**:
 
 ```json
@@ -951,23 +1054,38 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 
 ## 错误码说明
 
-| 错误码 | 含义 |
+| 错误码 / msg | 含义 |
 |------|---------|
 | `200` | 成功 |
 | `400` / 非 200 | 业务错误，请查看 `msg` 字段 |
-| `"Invalid or disabled API Key"` | API Key 无效或已禁用 |
-| `"Quota insufficient"` | Credit 不足，请充值 |
-| `"Credits per minute exceeded"` | 触发限速，请降低请求频率 |
-| `"Unknown skillCode"` | 路径中的 `{skillCode}` 无效 |
-| `"get_pool_list requires tokenAddress or poolAddress"` | 缺少必填参数 |
+| `SCRIPT_CLIENT` | UA 为空 / 命中库默认 UA 黑名单 / 不是 `name/version` 形式 |
+| `REQUEST_ID_INVALID` | `X-Request-Id` 缺失 / 格式错 / 签名错 / 超出 ±5 分钟 / 重放 |
+| `Invalid or disabled API Key` | API Key 无效或已禁用 |
+| `permission denied, require: <档>` | key 没有该档权限（data / account / trade / ai） |
+| `client IP not allowed` | 不在该 key 的 IP 白名单 |
+| `SIGNATURE_REQUIRED` | 账户读 / 交易缺少 `X-Signature` |
+| `TS_SKEW` | 签名时间超出 ±30 秒窗口（检查本机时钟） |
+| `SIG_INVALID` | 签名校验失败（检查 r‖s、canonical 消息、body 字节、keyId） |
+| `TEE_USER_AUTH_REQUIRED` | 交易缺少 `params.teeAuth` |
+| `TEE_CLIENT_MISMATCH` | `teeAuth` / `teeOrderAuth` 的 `clientId` 不是该 key 登记的设备 |
+| `LIMIT_ORDER_AUTH_REQUIRED` | 限价买单缺少 `params.teeOrderAuth`（LIMIT_BUY 授权） |
+| `LIMIT_ORDER_AUTH_MISMATCH` | 授权里的钱包 / 代币 / 金额 / 有效期与订单不一致 |
+| `STEP_UP_REQUIRED` / 需要二次验证 | 超过用户「高级安全模式」阈值，请到网页操作 |
+| `Quota insufficient` | Credit 不足，请充值 |
+| `Credits per minute exceeded` | 触发限速，请降低请求频率 |
+| `Unknown skillCode` | 路径中的 `{skillCode}` 无效 |
+| `get_pool_list requires tokenAddress or poolAddress` | 缺少必填参数 |
+
+> 请求头 / UA 校验只会拒绝或记录非法请求，**不会因此冻结账户或封禁 key**。
 
 ## 快速接入流程
 
-1. 登录 LogEarn 并获取 `logearn_token`
-2. 调用 `POST /open/api/v1/keys` 创建 API Key，获得 `sk_xxx`
-3. 调用 `POST /open/api/v1/recharge` 充值 Credit（最少 100,000）
-4. 将 `sk_xxx` 作为 `X-Api-Key` 请求头调用任意技能
-5. 通过 `GET /open/api/v1/quota` 和 `GET /open/api/v1/stats` 监控用量
+1. 登录 https://logearn.com，先在安全页开启二次验证（Passkey 或谷歌验证码）。
+2. 进入「API」页创建 API Key：选择权限（公开读 / 账户读 / 交易），通过二次验证后**一次性**拿到 API Key 与 API Secret，点「复制配置」。
+3. 运行 `python skills/logearn-cli.py config --apply` 并粘贴配置块（写入 `~/.config/logearn/.env`，权限 600），或自行设置环境变量。
+4. 充值 Credit（最少 100,000）：`POST /open/api/v1/recharge`（网页登录态）。
+5. 自己写代码：按上文「鉴权方式」带规范请求头（公开读），账户读 / 交易再签名。
+6. 通过 `GET /open/api/v1/quota` 和 `GET /open/api/v1/stats` 监控用量。
 
 ---
 

@@ -41,8 +41,12 @@ def get_cached_native_prices() -> dict:
         with open(_PRICE_CACHE_FILE, 'w') as f:
             json.dump({str(k): v for k, v in prices.items()} | {'_ts': time.time()}, f)
         return prices
-    except Exception:
-        return {3: 86, 56: 630}  # fallback
+    except Exception as e:
+        # 不再回落到写死的 {3:86, 56:630}（会算出错误市值且用户无感知）。取价失败就返回空，
+        # 下游 USD 市值降级为不显示，而不是给出错误数字。
+        import sys
+        print(f'[logearn] native price unavailable, USD values will be omitted: {e}', file=sys.stderr)
+        return {}
 
 
 # ---------------------------------------------------------------------------

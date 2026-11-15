@@ -19,16 +19,29 @@ LogEarn 作为专注筹码分析的交易平台，提供了动态筹码分析，
 
 > 📡 **实时数据（WebSocket）**：如需订阅实时行情、实时全量信号、实时关注地址信号、实时K线数据或实时交易明细数据，请参阅 [ws_api.md](./ws_api.md)。
 
-## 前置条件
+## 前置条件（AI 代理务必先做这一步）
 
-运行任何命令前，确保环境变量已设置：
+**运行任何命令前，先执行 `python logearn-cli.py config --check`：**
+- 退出码 `0` → 已配置，正常往下用。
+- 退出码 `1` → 未配置：运行 `python logearn-cli.py config` 并把输出原样展示给用户，引导他去网页创建 API Key；用户拿到网页「复制配置」的配置块后，运行 `python logearn-cli.py config --apply`（把配置块粘贴进标准输入）完成配置与自检。
+
+三档权限（决定一条命令要不要签名）：
+- **公开读**（信号 / 信号搜索 / 热门 / 代币详情 / 历史信号 / K 线 / 关注地址交易 / native 价格）：只要 **API Key**。
+- **账户读**（余额 / 仓位 / 成交明细 / 限价单列表）与 **交易**（`log-swap-*`）：另需 **API Secret**（ECDSA 私钥，创建 key 时只显示一次），CLI 自动用它签名；需要 `pip install cryptography`。交易还需要 `LOGEARN_CLIENT_ID`、`LOGEARN_ACCOUNT_ID`（网页「复制配置」会一并给出）。
+
+配置文件 `~/.config/logearn/.env`（权限 600）由 `config --apply` 写入；也可用环境变量覆盖（优先级：shell 环境变量 > 项目 `.env` > 全局文件）：
 
 ```bash
-export LOGEARN_API_KEY="sk_xxxxxxxx"                        # 必填
-export LOGEARN_API_BASE="https://logearn.com/logearn"       # 可选，默认此值
+export LOGEARN_API_KEY="lk_xxxxxxxx"        # 必填（公开读即够）
+export LOGEARN_CLIENT_KEY="04ab..."          # 必填：X-Request-Id 签名公钥（公开值，网页「复制配置」给出，轮换后需重新复制）
+export LOGEARN_API_SECRET="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"  # 账户读/交易
+export LOGEARN_CLIENT_ID="br-xxxxxxxxxxxxxxxxxxxxxxxx"   # 仅交易
+export LOGEARN_ACCOUNT_ID="123456"                         # 仅交易
+export LOGEARN_API_BASE="https://api.logearn.com/logearn"  # 可选
 ```
 
-若 `LOGEARN_API_KEY` 未设置，所有命令均会报错退出。
+> ⚠️ **绝不要让用户把 API Secret 贴进聊天、截图或提交进代码仓库**；本 Skill 也不会向用户索要它（它只存在用户本地配置文件里）。Secret 丢失无法找回——到网页删除该 key 重新创建。
+> Open API **不能提现、不能加白名单、不能改安全设置、不能导出私钥**；交易只作用于站内钱包。用户若开启「高级安全模式」，超阈值的交易需要二次验证、API 无法完成，请引导用户到网页操作。建议专用小额钱包。
 
 ---
 
@@ -76,9 +89,9 @@ log-get-limit-orders   限价单列表                  [--address <wallet>] [--
 ### 链上交易
 
 ```
-log-swap-solana        Solana 买卖                 --caller <wallet> --event buy|sell --action '<json>'
-log-swap-bsc           BSC 买卖                    --caller <wallet> --event buy|sell --action '<json>'
-log-limit-order        挂限价单                    --caller <wallet> --token <addr> --action '<json>' [--chain 3]
+log-swap-solana        Solana 买卖                 --caller <wallet> --event buy|sell --action '<json: tokenIn,tokenOut,amountIn>' [--slippage 0.5] [--min-out <n>]
+log-swap-bsc           BSC 买卖                    --caller <wallet> --event buy|sell --action '<json: tokenIn,tokenOut,amountIn>' [--slippage 0.5] [--min-out <n>]
+log-limit-order        挂限价单（买单自动签授权）  --caller <wallet> --token <addr> --action '<json>' [--chain 3] [--event 1|2]
 ```
 
 ### 账户管理
@@ -280,6 +293,7 @@ python logearn-cli.py log-swap-solana \
 ```
 
 > `tokenIn` 固定为 SOL 原生地址 `So11111111111111111111111111111111111111112`
+> **只需给 CA 和金额**：CLI 会自动取 token 详情和原生币价格，估算最少获得量 `min_amount_out`（默认滑点 **50%**，`--slippage 0.3` 即 30%，`--min-out <n>` 可直接指定），再用 API Secret 本地签交易意图（10 分钟有效）后提交。取不到价格或金额太小会直接报错，不会下单。
 
 ---
 
@@ -426,8 +440,26 @@ python logearn-cli.py log-filter-signal --chain 3 --type s300 --min 2
 ## 注意事项
 
 1. **链 ID 必须明确**：`log-get-token-info`、`log-get-token-signal`、`log-get-kline`、`log-get-balance` 均要求 `--chain` 参数。
-2. **交易使用真实资金** ：执行 `log-swap-*` 和 `log-limit-order` 前，请向用户确认钱包地址和交易金额。
+2. **交易使用真实资金** ：执行 `log-swap-*` 前，请向用户确认钱包地址和交易金额，并确认滑点（默认 50%，可用 `--slippage` 调整）。限价**买单**会自动用 API Secret 本地签订单授权（最长 7 天，到期订单失效）；卖单无需授权。
 3. **卖出必须先查持仓**：按比例卖出必须先调用 `log-get-positions` 获取 `hold_amount` 与 `decimals`，再计算 `amountIn`。
 4. **Credit 消耗**：`log-get-24h-signals` 消耗 3 credits/次，`log-get-hot` 消耗 1 credit/次，`log-get-follow-tx`、`log-filter-signal` 消耗 2 credits/次，注意频率控制。
 5. **地址格式**：Solana 地址为 Base58 格式；BSC 地址为 `0x...` 格式，混用时需指定 `--chain`。
 6. **Native Price 自动缓存**：`log-get-24h-signals`、`log-get-hot`、`log-get-token-info`、`log-get-token-signal` 均会在执行前自动获取并缓存 SOL/BNB 价格（10 分钟内复用缓存）， Agent 无需手动处理。
+
+---
+
+## 常见问题排查
+
+| 报错 / 现象 | 原因与处理 |
+|---|---|
+| `LOGEARN_API_KEY 未配置` / `LOGEARN_CLIENT_KEY 未配置` | 运行 `config --check`；未配置就按提示到网页「API」页创建 key，点「复制配置」，再 `config --apply` |
+| `TS_SKEW` | 本机时钟偏差超过 30 秒，校准系统时间（账户读 / 交易有更严的时间窗） |
+| `SIG_INVALID` | 签名不匹配：确认 `LOGEARN_API_SECRET` 与该 key 是同一次创建得到的；重新「复制配置」再 `config --apply` |
+| `SIGNATURE_REQUIRED` / 缺少 Secret | 账户读 / 交易需要 API Secret；Secret 丢失无法找回，到网页删除该 key 重新创建 |
+| `REQUEST_ID_INVALID` | 配置里的 `LOGEARN_CLIENT_KEY` 过期或不对：到网页重新「复制配置」 |
+| `SCRIPT_CLIENT` | 请求头 UA 不合法：用官方 CLI / SDK，或自己写代码时自定义 `name/version` 形式的 UA |
+| `permission denied, require: <档>` | 该 key 没有对应权限（公开读 / 账户读 / 交易），到网页修改权限 |
+| `需要二次验证` / 交易被拒 | 超过账户「高级安全模式」阈值，请到网页完成该笔交易 |
+| `Quota insufficient` | Credit 不足，到网页充值 |
+| 交易被拒签 | 检查金额是否过小（估算的最少获得量要 ≥ 1）、滑点是否合理、钱包地址是否属于该账户；限价买单还要确认 `LOGEARN_CLIENT_ID` 与 key 一致 |
+| `LIMIT_ORDER_AUTH_*` | 限价买单的授权缺失或与订单不一致：用 CLI 创建（自动签），自己写代码时按 `api.md` 的限价单授权说明 |

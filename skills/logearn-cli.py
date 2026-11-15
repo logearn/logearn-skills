@@ -56,19 +56,117 @@ Data:
   log-get-limit-orders  查询所有限价单                  [--address <wallet>] [--status -1|0|1|2]
 
 Trade  real funds:
-  log-swap-solana       Solana 买卖                    --caller <wallet> --event buy|sell --action '<json>'
-  log-swap-bsc          BSC 买卖                       --caller <wallet> --event buy|sell --action '<json>'
-  log-limit-order       挂限价单                       --caller <wallet> --token <addr> --action '<json>' [--chain 3] [--event 1|2]
+  log-swap-solana       Solana 买卖                    --caller <wallet> --event buy|sell --action '<json:tokenIn,tokenOut,amountIn>' [--slippage 0.5] [--min-out <n>]
+  log-swap-bsc          BSC 买卖                       --caller <wallet> --event buy|sell --action '<json:tokenIn,tokenOut,amountIn>' [--slippage 0.5] [--min-out <n>]
+  log-limit-order       挂限价单（买单自动签授权）     --caller <wallet> --token <addr> --action '<json>' [--chain 3] [--event 1|2]
 
 Account:
   log-quota             配额余额
+
+Config:
+  config                查看如何配置（去网页创建 API Key，复制配置块）
+  config --check        检查是否已配置（退出码 0=已配置并自检通过，1=未配置/无效）
+  config --apply        从标准输入读取网页复制的配置块，写入 ~/.config/logearn/.env 并自检
 """.strip()
 
 
-def main():
-    if not os.environ.get('LOGEARN_API_KEY'):
-        die('LOGEARN_API_KEY env is not set')
+_CONFIG_DIR = os.path.join(os.path.expanduser('~'), '.config', 'logearn')
+_ENV_FILE   = os.path.join(_CONFIG_DIR, '.env')
+_WEB_URL    = os.environ.get('LOGEARN_WEB_URL', 'https://logearn.com')
 
+
+def _write_env(kv: dict):
+    """把 kv 写进 ~/.config/logearn/.env（保留其它行，覆盖这几项），权限 0600。"""
+    lines = []
+    managed = set(kv.keys())
+    if os.path.exists(_ENV_FILE):
+        for line in open(_ENV_FILE, encoding='utf-8'):
+            k = line.split('=', 1)[0].strip()
+            if k and k not in managed:
+                lines.append(line.rstrip('\n'))
+    for k, v in kv.items():
+        lines.append(f'{k}={v}')
+    os.makedirs(_CONFIG_DIR, exist_ok=True)
+    with open(_ENV_FILE, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines) + '\n')
+    try:
+        os.chmod(_ENV_FILE, 0o600)
+    except Exception:
+        pass
+
+
+def cmd_config(opts: dict):
+    # --check：exit 0=已配置并自检通过，1=未配置/无效
+    if opts.get('check'):
+        if not api.KEY:
+            print('LOGEARN_API_KEY 未配置', file=sys.stderr)
+            sys.exit(1)
+        try:
+            res = api.get_quota()  # 轻量、只要 X-Api-Key
+            if isinstance(res, dict) and str(res.get('code')) == '200':
+                print('配置有效，可以开始使用。')
+                sys.exit(0)
+            print(f'配置验证失败：{res.get("message") if isinstance(res, dict) else res}', file=sys.stderr)
+            sys.exit(1)
+        except Exception as e:
+            print(f'配置已写入，但自检请求失败（可能是网络问题），可先尝试使用：{e}', file=sys.stderr)
+            sys.exit(1)
+
+    # --apply：从 stdin 读网页复制的配置块（含 LOGEARN_API_KEY= / LOGEARN_API_SECRET= / 可选 LOGEARN_API_BASE=）
+    if opts.get('apply'):
+        pasted = sys.stdin.read()
+        kv = {}
+        for line in pasted.splitlines():
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            k, _, v = line.partition('=')
+            k = k.strip()
+            if k in ('LOGEARN_API_KEY', 'LOGEARN_API_SECRET', 'LOGEARN_API_BASE', 'LOGEARN_CLIENT_ID', 'LOGEARN_ACCOUNT_ID', 'LOGEARN_CLIENT_KEY'):
+                kv[k] = v.strip().strip('"').strip("'")
+        if 'LOGEARN_API_KEY' not in kv:
+            die('粘贴内容里没有 LOGEARN_API_KEY=...，请在网页点「复制配置」拿到完整配置块再粘贴')
+        _write_env(kv)
+        print(f'已写入 {_ENV_FILE}')
+        # 新进程自检（本进程 api.KEY 在 import 时已固定，用子进程读取新写入的配置文件）
+        import subprocess
+        r = subprocess.run([sys.executable, os.path.abspath(__file__), 'config', '--check'])
+        sys.exit(r.returncode)
+
+    # 默认：打印引导
+    print(f"""请按以下步骤配置 LogEarn API Key：
+1. 打开 {_WEB_URL} 登录后进入「API」页，点「创建 API Key」。
+2. 创建时浏览器会生成密钥对：API Key 可随时复制；**API Secret 只显示一次**（账户读 / 交易才需要它）。
+3. 点页面上的「复制配置」拿到配置块，然后运行：
+     python logearn-cli.py config --apply   # 然后把配置块粘贴进来，回车后按 Ctrl-D 结束
+   或手动写入 {_ENV_FILE}（每行 KEY=VALUE，权限 600）。
+提示：公开读（信号 / 热门 / K 线 / 代币详情）只要 API Key；账户读（余额 / 仓位 / 成交 / 限价单）和交易需要 API Secret。
+不要把 API Secret 贴进聊天、截图或提交进代码仓库。""")
+
+
+def _swap(fn, chain_id, solana, opts):
+    """交易：只给 CA / 金额即可。min_amount_out 默认用 token 详情 + native 价格自动估算（默认滑点 50%，--slippage 0.3 = 30%），
+    也可用 --min-out 直接指定（最小单位整数）。CLI 用 API Secret 本地签交易意图（10 分钟有效）后提交。"""
+    action = json.loads(opts['action'])
+    for k in ('tokenIn', 'tokenOut', 'amountIn'):
+        if k not in action: die(f"--action 里缺少 {k}")
+    try:
+        if 'min-out' in opts:
+            min_out, usd = opts['min-out'], opts.get('usd', '0')
+        else:
+            est = api.estimate_min_out(chain_id=chain_id, token_in=action['tokenIn'], token_out=action['tokenOut'],
+                                       amount_in=action['amountIn'], slippage=float(opts.get('slippage', api.DEFAULT_SLIPPAGE)))
+            min_out, usd = est['min_amount_out'], opts.get('usd', est['amount_usd'])
+            print(f"[estimate] min_amount_out={min_out} ≈${float(usd):.2f}（预期 {est['expected_out']}，滑点 {opts.get('slippage', api.DEFAULT_SLIPPAGE)}）", file=sys.stderr)
+        auth = api.build_trade_auth(chain_id=chain_id, wallet=opts['caller'], token_in=action['tokenIn'],
+                                    token_out=action['tokenOut'], amount_in=action['amountIn'],
+                                    min_amount_out=min_out, amount_usd=usd, solana=solana)
+    except api.ApiError as e:
+        die(str(e))
+    return fn(caller=opts['caller'], event_type=opts['event'], action=action, tee_auth=auth)
+
+
+def main():
     argv = sys.argv[1:]
     if not argv:
         print(USAGE)
@@ -76,6 +174,13 @@ def main():
 
     cmd, *rest = argv
     opts = parse_args(rest)
+
+    if cmd == 'config':
+        cmd_config(opts)
+        return
+
+    if not os.environ.get('LOGEARN_API_KEY'):
+        die('LOGEARN_API_KEY 未配置。运行: python logearn-cli.py config')
 
     if cmd == 'log-get-native-price':
         chain = int(opts['chain']) if 'chain' in opts else None
@@ -199,8 +304,7 @@ def main():
         if 'caller' not in opts: die('--caller <wallet> required')
         if 'event'  not in opts: die('--event buy|sell required')
         if 'action' not in opts: die("--action '{\"tokenIn\":...}' required")
-        res  = api.solana_swap(caller=opts['caller'], event_type=opts['event'],
-                               action=json.loads(opts['action']))
+        res  = _swap(api.solana_swap, 3, True, opts)
         data = helpers.unwrap(res, 'swap-solana')
         print(json.dumps(helpers.fmt_swap_result(data), ensure_ascii=False, indent=2, sort_keys=True))
 
@@ -209,8 +313,7 @@ def main():
         if 'caller' not in opts: die('--caller <wallet> required')
         if 'event'  not in opts: die('--event buy|sell required')
         if 'action' not in opts: die("--action '{\"tokenIn\":...}' required")
-        res  = api.bsc_swap(caller=opts['caller'], event_type=opts['event'],
-                            action=json.loads(opts['action']))
+        res  = _swap(api.bsc_swap, 56, False, opts)
         data = helpers.unwrap(res, 'swap-bsc')
         print(json.dumps(helpers.fmt_swap_result(data), ensure_ascii=False, indent=2, sort_keys=True))
 
@@ -218,14 +321,17 @@ def main():
         if 'caller' not in opts: die('--caller <wallet> required')
         if 'token'  not in opts: die('--token <address> required')
         if 'action' not in opts: die("--action '{\"limitNumber\":...}' required")
-        res  = api.limit_order(
-            caller        = opts['caller'],
-            token_address = opts['token'],
-            action        = json.loads(opts['action']),
-            chain_id      = int(opts['chain']) if 'chain' in opts else None,
-            event_type    = int(opts['event']) if 'event' in opts else None,
-            expired_at    = int(opts['expires']) if 'expires' in opts else None,
-        )
+        try:
+            res  = api.limit_order(
+                caller        = opts['caller'],
+                token_address = opts['token'],
+                action        = json.loads(opts['action']),
+                chain_id      = int(opts['chain']) if 'chain' in opts else None,
+                event_type    = int(opts['event']) if 'event' in opts else None,
+                expired_at    = int(opts['expires']) if 'expires' in opts else None,
+            )
+        except api.ApiError as e:
+            die(str(e))
         data = helpers.unwrap(res, 'limit-order')
         print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
 
