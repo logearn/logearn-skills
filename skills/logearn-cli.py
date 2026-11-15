@@ -122,7 +122,7 @@ def cmd_config(opts: dict):
                 continue
             k, _, v = line.partition('=')
             k = k.strip()
-            if k in ('LOGEARN_API_KEY', 'LOGEARN_API_SECRET', 'LOGEARN_API_BASE', 'LOGEARN_CLIENT_ID', 'LOGEARN_ACCOUNT_ID', 'LOGEARN_CLIENT_KEY'):
+            if k in ('LOGEARN_API_KEY', 'LOGEARN_API_SECRET', 'LOGEARN_API_BASE', 'LOGEARN_CLIENT_ID', 'LOGEARN_ACCOUNT_ID', 'LOGEARN_API_PUBLIC_KEY'):
                 kv[k] = v.strip().strip('"').strip("'")
         if 'LOGEARN_API_KEY' not in kv:
             die('粘贴内容里没有 LOGEARN_API_KEY=...，请在网页点「复制配置」拿到完整配置块再粘贴')
@@ -347,4 +347,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except api.ApiError as e:
+        die(str(e))

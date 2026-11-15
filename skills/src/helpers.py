@@ -22,31 +22,44 @@ _PRICE_CACHE_FILE = os.path.join(_CACHE_DIR, 'native_prices.json')
 _PRICE_CACHE_TTL  = 600  # seconds
 
 
-def get_cached_native_prices() -> dict:
-    """Return {3: sol_usd, 56: bnb_usd}, refreshing from API when cache is missing or stale."""
+_STALE_MAX_AGE = 3600
+
+
+def _read_price_cache(max_age: float):
     try:
         if os.path.exists(_PRICE_CACHE_FILE):
             with open(_PRICE_CACHE_FILE, 'r') as f:
                 cached = json.load(f)
-            if time.time() - cached.get('_ts', 0) < _PRICE_CACHE_TTL:
+            if time.time() - cached.get('_ts', 0) < max_age:
                 return {int(k): float(v) for k, v in cached.items() if k != '_ts'}
     except Exception:
         pass
+    return None
 
+
+def get_cached_native_prices() -> dict:
+    """Return {3: sol_usd, 56: bnb_usd}。缓存 10 分钟；刷新失败时只允许用 1 小时内的旧缓存，
+    再旧 / 没有就抛 ApiError——绝不返回空值或写死价格（格式化层对缺失价格会按 1.0 算市值，结果会静默错误）。"""
+    fresh = _read_price_cache(_PRICE_CACHE_TTL)
+    if fresh:
+        return fresh
     import api as _api
     try:
         res    = _api.get_native_price()
         prices = {3: float(res.get('sol', 0) or 0), 56: float(res.get('bnb', 0) or 0)}
+        if not all(v > 0 for v in prices.values()):
+            raise _api.ApiError(f'native price invalid: {prices}')
         os.makedirs(_CACHE_DIR, exist_ok=True)
         with open(_PRICE_CACHE_FILE, 'w') as f:
             json.dump({str(k): v for k, v in prices.items()} | {'_ts': time.time()}, f)
         return prices
     except Exception as e:
-        # 不再回落到写死的 {3:86, 56:630}（会算出错误市值且用户无感知）。取价失败就返回空，
-        # 下游 USD 市值降级为不显示，而不是给出错误数字。
-        import sys
-        print(f'[logearn] native price unavailable, USD values will be omitted: {e}', file=sys.stderr)
-        return {}
+        stale = _read_price_cache(_STALE_MAX_AGE)
+        if stale:
+            import sys
+            print(f'[logearn] native price refresh failed, using cache < 1h old: {e}', file=sys.stderr)
+            return stale
+        raise _api.ApiError(f'native price unavailable ({e})')
 
 
 # ---------------------------------------------------------------------------

@@ -15,7 +15,7 @@ python skills/logearn-cli.py config --apply     # 粘贴配置块后 Ctrl-D；�
 python skills/logearn-cli.py config --check     # 退出码 0=已配置并有效
 ```
 
-也可用环境变量：`LOGEARN_API_KEY`（必填，公开读够用）、`LOGEARN_CLIENT_KEY`（必填，请求 id 签名公钥）、`LOGEARN_API_SECRET`（账户读 / 交易）、`LOGEARN_CLIENT_ID` + `LOGEARN_ACCOUNT_ID`（仅交易）、`LOGEARN_API_BASE`（可选，默认 `https://api.logearn.com/logearn`）。账户读 / 交易需要 `pip install cryptography`。
+也可用环境变量：`LOGEARN_API_KEY`（必填，公开读够用）、`LOGEARN_API_PUBLIC_KEY`（必填，该 key 登记的公钥，请求 id 签名用）、`LOGEARN_API_SECRET`（账户读 / 交易）、`LOGEARN_CLIENT_ID` + `LOGEARN_ACCOUNT_ID`（仅交易）、`LOGEARN_API_BASE`（可选，默认 `https://api.logearn.com/logearn`）。账户读 / 交易需要 `pip install cryptography`。
 
 > 公开读只要 API Key；账户读（余额 / 仓位 / 成交 / 限价单）和交易要用 Secret 签名。Open API 不能提现、不能改安全设置；不要把 Secret 贴进聊天或提交进仓库。详见 [api/api.md](./api/api.md)。
 

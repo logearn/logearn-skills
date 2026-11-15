@@ -33,7 +33,7 @@ LogEarn 作为专注筹码分析的交易平台，提供了动态筹码分析，
 
 ```bash
 export LOGEARN_API_KEY="lk_xxxxxxxx"        # 必填（公开读即够）
-export LOGEARN_CLIENT_KEY="04ab..."          # 必填：X-Request-Id 签名公钥（公开值，网页「复制配置」给出，轮换后需重新复制）
+export LOGEARN_API_PUBLIC_KEY="04ab..."          # 必填：该 key 登记的公钥（公开值，网页「复制配置」给出）
 export LOGEARN_API_SECRET="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"  # 账户读/交易
 export LOGEARN_CLIENT_ID="br-xxxxxxxxxxxxxxxxxxxxxxxx"   # 仅交易
 export LOGEARN_ACCOUNT_ID="123456"                         # 仅交易
@@ -452,11 +452,11 @@ python logearn-cli.py log-filter-signal --chain 3 --type s300 --min 2
 
 | 报错 / 现象 | 原因与处理 |
 |---|---|
-| `LOGEARN_API_KEY 未配置` / `LOGEARN_CLIENT_KEY 未配置` | 运行 `config --check`；未配置就按提示到网页「API」页创建 key，点「复制配置」，再 `config --apply` |
+| `LOGEARN_API_KEY 未配置` / `LOGEARN_API_PUBLIC_KEY 未配置` | 运行 `config --check`；未配置就按提示到网页「API」页创建 key，点「复制配置」，再 `config --apply` |
 | `TS_SKEW` | 本机时钟偏差超过 30 秒，校准系统时间（账户读 / 交易有更严的时间窗） |
 | `SIG_INVALID` | 签名不匹配：确认 `LOGEARN_API_SECRET` 与该 key 是同一次创建得到的；重新「复制配置」再 `config --apply` |
 | `SIGNATURE_REQUIRED` / 缺少 Secret | 账户读 / 交易需要 API Secret；Secret 丢失无法找回，到网页删除该 key 重新创建 |
-| `REQUEST_ID_INVALID` | 配置里的 `LOGEARN_CLIENT_KEY` 过期或不对：到网页重新「复制配置」 |
+| `REQUEST_ID_INVALID` | 配置里的 `LOGEARN_API_PUBLIC_KEY` 不是该 key 的公钥（复制错了或混用了别的 key）：到网页重新「复制配置」 |
 | `SCRIPT_CLIENT` | 请求头 UA 不合法：用官方 CLI / SDK，或自己写代码时自定义 `name/version` 形式的 UA |
 | `permission denied, require: <档>` | 该 key 没有对应权限（公开读 / 账户读 / 交易），到网页修改权限 |
 | `需要二次验证` / 交易被拒 | 超过账户「高级安全模式」阈值，请到网页完成该笔交易 |

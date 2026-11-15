@@ -8,7 +8,7 @@ LogEarn 作为专注筹码分析的交易平台，提供了动态筹码分析，
 
 - `LOGEARN_API_KEY`（必填）— LogEarn API Key（格式 `lk_xxxxxxxx`，**不是秘密**，可随时复制）。登录 https://logearn.com 「API」页创建；创建时浏览器会临时生成一对 P-256 密钥，需要账户已开启二次验证。
 - `LOGEARN_API_SECRET`（账户读 / 交易才需要）— 创建时浏览器生成的 **ECDSA P-256 私钥（PKCS8 PEM）**，**只显示一次**，服务端不保存。丢失无法找回：到网页删除该 key 重新创建。
-- `LOGEARN_CLIENT_KEY`（必填）— `X-Request-Id` 的签名公钥（公开值，全站同一个），网页「复制配置」一并给出；公钥轮换后需重新复制配置。
+- `LOGEARN_API_PUBLIC_KEY`（必填）— 该 API Key 自己登记的公钥（公开值，不是秘密），网页「复制配置」一并给出；`X-Request-Id` 用它做 HMAC。
 - `LOGEARN_CLIENT_ID`、`LOGEARN_ACCOUNT_ID`（仅交易需要）— 网页「复制配置」会一并给出。
 - `LOGEARN_API_BASE`（可选）— 默认 `https://api.logearn.com/logearn`。
 
@@ -23,7 +23,7 @@ LogEarn 作为专注筹码分析的交易平台，提供了动态筹码分析，
 | `X-Api-Key` | API Key（keyId） |
 | `User-Agent` | 自定义，形如 `logearn-cli/2.0.0`、`LogearnBot/1.0`；**不能用 `python-requests`、`curl`、`okhttp`、`Go-http-client` 等库默认 UA**，自己写代码也要自定义 |
 | `X-Client-Instance` | 本机固定的任意可见 ASCII 字符串（≤80，建议 16 位 hex，首次生成后持久化），参与 `X-Request-Id` 签名 |
-| `X-Request-Id` | `v1.<毫秒时间戳13位>.<12位hex>.<16位签名hex>`，**每个请求换新的**。签名 = `HMAC-SHA256(签名公钥, "v1\|ts\|rand\|instance")` 的前 8 字节（hex）。签名公钥即配置里的 `LOGEARN_CLIENT_KEY`（没有匿名取公钥接口）。该公钥是公开值，只用于统一规范与事后排查，不提供保密性 |
+| `X-Request-Id` | `v1.<毫秒时间戳13位>.<12位hex>.<16位签名hex>`，**每个请求换新的**。签名 = `HMAC-SHA256(签名公钥, "v1\|ts\|rand\|instance")` 的前 8 字节（hex）。签名密钥是该 API Key 登记的公钥，即配置里的 `LOGEARN_API_PUBLIC_KEY`（公开值，仅用于统一请求规范）。|
 | `X-Signature` | **仅账户读与交易** |
 
 按接口档位决定是否签名：
@@ -65,7 +65,7 @@ SECRET = os.environ["LOGEARN_API_SECRET"].replace("\\n", "\n")
 INSTANCE = "0011223344556677"        # 固定持久化
 UA = "my-app/1.0"                    # 自定义 UA
 
-CLIENT_KEY = os.environ["LOGEARN_CLIENT_KEY"].lower().removeprefix("0x")   # 签名公钥，网页「复制配置」给出
+CLIENT_KEY = os.environ["LOGEARN_API_PUBLIC_KEY"].lower().removeprefix("0x")   # 该 key 登记的公钥，网页「复制配置」给出
 def client_key():
     return CLIENT_KEY
 
@@ -92,7 +92,48 @@ print(call("get_token_info", {"chain": [3], "params": {"base": "<token>"}}))    
 print(call("get_wallet_positions", {}, signed=True))                              # 账户读
 ```
 
-> 下文各 Skill 的 `curl` 示例为简洁只写了 `X-Api-Key`：**实际调用还需带上面的规范请求头**（公开读），账户读 / 交易还要 `X-Signature`。推荐直接用 CLI / SDK（`skills/src/api.py` 已封装好全部头与签名）。`curl + openssl` 手写时记得把 openssl 输出的 DER 转成 r‖s。
+**curl / shell 辅助函数**（bash + curl + openssl + xxd + python3；账户读的签名需要把 openssl 输出的 DER 转成 r‖s）：
+
+保存为 `logearn.sh`，`source logearn.sh` 后，下文各 Skill 的示例就可以直接运行：
+
+```bash
+# LogEarn Open API 调用助手（bash + curl + openssl）。依赖环境变量：
+#   LOGEARN_API_KEY、LOGEARN_API_PUBLIC_KEY（网页「复制配置」得到）；账户读 / 交易另需 LOGEARN_API_SECRET（PEM，PKCS8）
+: "${LOGEARN_API_BASE:=https://api.logearn.com/logearn}"
+: "${LOGEARN_INSTANCE:=$(printf '%s' "${HOSTNAME:-host}$USER" | openssl dgst -sha256 | awk '{print substr($NF,1,16)}')}"
+LOGEARN_UA="my-app/1.0"                      # 自定义 name/version，不能用 curl 默认 UA
+
+_logearn_request_id() {
+  local ts rand mac
+  ts=$(( $(date +%s) * 1000 )); rand=$(openssl rand -hex 6)
+  mac=$(printf 'v1|%s|%s|%s' "$ts" "$rand" "$LOGEARN_INSTANCE" \
+        | openssl dgst -sha256 -mac HMAC -macopt "key:${LOGEARN_API_PUBLIC_KEY#0x}" -binary | xxd -p -c 32 | cut -c1-16)
+  printf 'v1.%s.%s.%s' "$ts" "$rand" "$mac"
+}
+
+# 用法：logearn_curl <skill> '<json body>' [signed]    signed = 账户读 / 交易
+logearn_curl() {
+  local skill="$1" body="${2:-{\}}" signed="${3:-}" rid path sig
+  rid=$(_logearn_request_id); path="/open/api/v1/call/$skill"
+  local args=(-sS -X POST "$LOGEARN_API_BASE$path" -H "Content-Type: application/json" -H "User-Agent: $LOGEARN_UA"
+              -H "X-Api-Key: $LOGEARN_API_KEY" -H "X-Client-Instance: $LOGEARN_INSTANCE" -H "X-Request-Id: $rid" --data-binary "$body")
+  if [ -n "$signed" ]; then
+    local msg; msg=$(printf 'logearn/openapi/req/v1\nPOST\n%s\n\n%s\n%s\n%s' "$path" \
+        "$(printf '%s' "$body" | openssl dgst -sha256 | awk '{print $NF}')" "$rid" "$LOGEARN_API_KEY")
+    local keyfile; keyfile=$(mktemp); printf '%b' "$LOGEARN_API_SECRET" > "$keyfile"
+    # openssl 输出 DER，需要转成 r‖s（各 32 字节）再 base64url
+    sig=$(printf '%s' "$msg" | openssl dgst -sha256 -sign "$keyfile" | python3 -c '
+import sys,base64
+d=sys.stdin.buffer.read(); i=2+(d[1]&0x7f if d[1]&0x80 else 0)
+rl=d[i+1]; r=d[i+2:i+2+rl]; s=d[i+2+rl+2:i+2+rl+2+d[i+2+rl+1]]
+print(base64.urlsafe_b64encode(r.lstrip(b"\0").rjust(32,b"\0")+s.lstrip(b"\0").rjust(32,b"\0")).decode().rstrip("="))')
+    rm -f "$keyfile"; args+=(-H "X-Signature: $sig")
+  fi
+  curl "${args[@]}"
+}
+```
+
+> 下文的示例都调用 `logearn_curl <skill> '<json>' [signed]`：公开读不带 `signed`，账户读带 `signed`。**交易（`solana_swap` / `bsc_swap` / `limit_order`）还需要本地签名的交易意图 / 订单授权（`params.teeAuth` / `params.teeOrderAuth`），用 shell 手写不现实，请使用 CLI 或 `skills/src/api.py`（SDK）**；下文交易示例只用来说明请求体字段。
 
 ## 计费说明
 
@@ -135,10 +176,10 @@ CLI 会自动在调用信号、热门榜单、Token 详情接口前将该价格�
 
 ```bash
 # 只取 SOL 价格
-curl -X POST "$LOGEARN_API_BASE/open/api/v1/call/get_native_price" -H "X-Api-Key: $LOGEARN_API_KEY" -H 'Content-Type: application/json' -d '{"chain":3}'   # 另需规范请求头
+logearn_curl get_native_price '{"chain":3}'
 
 # 一次取 SOL + BNB
-curl -X POST "$LOGEARN_API_BASE/open/api/v1/call/get_native_price" -H "X-Api-Key: $LOGEARN_API_KEY" -H 'Content-Type: application/json' -d '{}'
+logearn_curl get_native_price '{}'
 ```
 
 **返回（传 chain 时）**:
@@ -225,10 +266,7 @@ curl -X POST "$LOGEARN_API_BASE/open/api/v1/call/get_native_price" -H "X-Api-Key
 
 ```bash
 # 默认参数（Solana + BSC 全链信号）
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_all_signal" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{}'
+logearn_curl get_all_signal '{}'
 ```
 
 **响应结构**:
@@ -262,10 +300,7 @@ LogEarn 根据多因子聚合，对潜力热门金狗，或者正处于热门交
 
 ```bash
 # 指定分组
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_hot_list" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"chain":["3","56"],"tokenGroupId":12}'
+logearn_curl get_hot_list '{"chain":["3","56"],"tokenGroupId":12}'
 ```
 
 **响应结构**:
@@ -308,10 +343,7 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 
 ```bash
 # 查询 Solana Token 详情
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_token_info" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"chain":[3],"params":{"base":"DSSXu6XbYDgWnjMVzagcVF9QpVWXY2H9iexAc4mpump"}}'
+logearn_curl get_token_info '{"chain":[3],"params":{"base":"DSSXu6XbYDgWnjMVzagcVF9QpVWXY2H9iexAc4mpump"}}'
 ```
 
 **响应结构**:
@@ -338,10 +370,7 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 
 ```bash
 # 查询某 Token 的所有历史 AI 信号，指定链（SOLANA）
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_token_signal" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"index_token_address":"FDBjQdN4Uf8rsJfn9eNRbmNjaQktCdqJ63Ptijfdpump","chain":"3"}'
+logearn_curl get_token_signal '{"index_token_address":"FDBjQdN4Uf8rsJfn9eNRbmNjaQktCdqJ63Ptijfdpump","chain":"3"}'
 ```
 
 **响应结构**:
@@ -383,16 +412,10 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 
 ```bash
 # 默认参数（查询鲸鱼信号）
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/filter_signal" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{}'
+logearn_curl filter_signal '{}'
 
 # 查询K线信号，指定时间范围和分页
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/filter_signal" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
+logearn_curl filter_signal '{
     "chain": ["3"],
     "params": {
       "signal_type": "kline",
@@ -403,10 +426,7 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
   }'
 
 # 多链查询15秒级信号
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/filter_signal" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
+logearn_curl filter_signal '{
     "chain": ["3", "56"],
     "params": {
       "signal_type": "s15",
@@ -438,16 +458,10 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 
 ```bash
 # 1) 查询当前账号自己关注的聪明錢最新 Solana 交易
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_follow_tx" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{}'
+logearn_curl get_follow_tx '{}'
 
 # 2) 查询官方公共关注榜单（多链合并）
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_follow_tx" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
+logearn_curl get_follow_tx '{
     "chain": ["3","56"]
   }'
 ```
@@ -487,16 +501,10 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 
 ```bash
 # 最近96根15分钟K线（默认）
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_kline_list" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"base":"7c5gm5fqvQuyteJ9G4pFaubqRVHuegsFXtfHJXBBpump", "chain": "3"}'
+logearn_curl get_kline_list '{"base":"7c5gm5fqvQuyteJ9G4pFaubqRVHuegsFXtfHJXBBpump", "chain": "3"}'
 
 # 自定义周期和时间范围
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_kline_list" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"chain":"3","base":"7c5gm5fqvQuyteJ9G4pFaubqRVHuegsFXtfHJXBBpump","intervalTime":900,"endTime":1775883812,"pageSize":96}'
+logearn_curl get_kline_list '{"chain":"3","base":"7c5gm5fqvQuyteJ9G4pFaubqRVHuegsFXtfHJXBBpump","intervalTime":900,"endTime":1775883812,"pageSize":96}'
 ```
 
 **响应结构**:
@@ -544,16 +552,10 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 
 ```bash
 # Solana 账号 SOL 余额
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_coin_balance" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY"}'
+logearn_curl get_coin_balance '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY"}' signed
 
 # BSC 账号 BNB 余额
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_coin_balance" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"address":"0xed2eebf5929f9230a48dfbae0ca085e7a1425e6f","chain":56}'
+logearn_curl get_coin_balance '{"address":"0xed2eebf5929f9230a48dfbae0ca085e7a1425e6f","chain":56}' signed
 ```
 
 **响应结构**:
@@ -596,23 +598,17 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 
 ```bash
 # 查询单地址持仓（默认参数）
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_wallet_positions" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY"}'
+logearn_curl get_wallet_positions '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY"}' signed
 
 # 多链多地址 + 分页
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_wallet_positions" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
+logearn_curl get_wallet_positions '{
     "address": "Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY,0xed2eebf5929f9230a48dfbae0ca085e7a1425e6f",
     "page_size": 20,
     "page_num": 0,
     "sort_field": "open_position_time",
     "sort_direction": "desc",
     "hold_amount": "1"
-  }'
+  }' signed
 ```
 
 **响应结构**:
@@ -720,16 +716,10 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 
 ```bash
 # 查询待执行的限价单（默认 status=1）
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_limit_orders" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY,0xed2eebf5929f9230a48dfbae0ca085e7a1425e6f"}'
+logearn_curl get_limit_orders '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY,0xed2eebf5929f9230a48dfbae0ca085e7a1425e6f"}' signed
 
 # 查询已取消的订单
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_limit_orders" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY","status":-1,"page_size":50}'
+logearn_curl get_limit_orders '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY","status":-1,"page_size":50}' signed
 ```
 
 **响应结构**:
@@ -775,30 +765,21 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 
 ```bash
 # 查询 Solana 钱包交易明细（默认参数）
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_trade_logs" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY"}'
+logearn_curl get_trade_logs '{"address":"Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY"}' signed
 
 # 多地址查询（Solana + BSC 钱包交易合并）
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_trade_logs" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
+logearn_curl get_trade_logs '{
     "address": "Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY",
     "chain": "3",
     "page_size": 100,
     "page_num": 0
-  }'
+  }' signed
 
 # 查询 BSC 钱包交易明细（protocol 由 chain 自动推导，无需传入）
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/get_trade_logs" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
+logearn_curl get_trade_logs '{
     "address": "0xed2eebf5929f9230a48dfbae0ca085e7a1425e6f",
     "chain": "56"
-  }'
+  }' signed
 ```
 
 **响应结构**:
@@ -901,14 +882,11 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 | `entrustStopProfit1` ~ `entrustStopProfit3` | `float` | 触发后的止盈目标涨幅（%） |
 | `entrustStopProfit1Percent` ~ `entrustStopProfit3Percent` | `float` | 触发后卖出仓位比例（%） |
 
-**请求示例**:
+**请求示例**（仅说明字段；实际下单需要 `params.teeAuth`，请用 CLI 或 SDK）:
 
 ```bash
 # Solana 买入
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/solana_swap" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
+logearn_curl solana_swap '{
     "caller": "Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY",
     "eventType": "buy",
     "action": {
@@ -924,13 +902,10 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
       "stopLoss1": 30,
       "stopLoss1Percent": 100
     }
-  }'
+  }' signed
 
 # BSC 卖出
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/bsc_swap" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
+logearn_curl bsc_swap '{
     "caller": "0xed2eebf5929f9230a48dfbae0ca085e7a1425e6f",
     "eventType": "sell",
     "action": {
@@ -941,7 +916,7 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
       "key": "sell",
       "antiMev": 1
     }
-  }'
+  }' signed
 ```
 
 **响应结构**:
@@ -1003,13 +978,10 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
 
 > 支持所有 `solana_swap` / `bsc_swap` 中的止盈止损参数：分批止盈（`stopProfit1~5`）、分批止损（`stopLoss1~3`）、移动止损（`withdrawStopLoss1~3`）、条件止盈（`entrustConditionStopProfit1~3`）。具体字段见[链上交易 action 止盈止损参数说明](#skill-solana_swap--bsc_swap--链上交易)。
 
-**请求示例**:
+**请求示例**（仅说明字段；买单需要 `params.teeOrderAuth`，请用 CLI 或 SDK）:
 
 ```bash
-curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/call/limit_order" \
-  -H "X-Api-Key: $LOGEARN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
+logearn_curl limit_order '{
     "caller": "Ax2dHBwWJ2DBoe2z5gjjeuGQuyqvnyzDCZXyc3FMSPBY",
     "tokenAddress": "FDBjQdN4Uf8rsJfn9eNRbmNjaQktCdqJ63Ptijfdpump",
     "chainId": 3,
@@ -1030,7 +1002,7 @@ curl -X POST "${LOGEARN_API_BASE:-https://api.logearn.com /logearn}/open/api/v1/
       "stopProfit1": 100,
       "stopProfit1Percent": 50
     }
-  }'
+  }' signed
 ```
 
 > 上面的请求体为简洁起见省略了 `params.teeOrderAuth`（买单必填，见上文「交易授权」）；用 CLI 的 `log-limit-order` 时会自动生成。

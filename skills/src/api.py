@@ -3,7 +3,7 @@ LogEarn Open API — HTTP layer（统一客户端）
 
 公共接口架构（见 logearn-web `docs/Telegram 和 Publick Skills/公共接口架构设计.md`）：
   - 所有 /open/api/v1/** 请求都带规范请求头：固定 UA（logearn-cli/<ver>）、X-Client-Instance、X-Request-Id
-    （HMAC-SHA256(签名公钥, "v1|ts|rand|instance") 前 8 字节；签名公钥来自配置 LOGEARN_CLIENT_KEY）。
+    （HMAC-SHA256(签名公钥, "v1|ts|rand|instance") 前 8 字节；签名密钥 = 该 API Key 自己登记的公钥，来自配置 LOGEARN_API_PUBLIC_KEY）。
   - 公开读（data）只要 X-Api-Key + 上面这些头；账户读（account）、交易（trade）另加 X-Signature
     （ECDSA P-256 对 §2.4 的 canonical 消息签名，输出 r‖s base64url；用 LOGEARN_API_SECRET 私钥，需要 cryptography 库）。
   - 不再回落任何硬编码默认值：缺 LOGEARN_API_KEY / LOGEARN_API_SECRET 时明确报错。
@@ -97,11 +97,11 @@ def _instance_id() -> str:
 
 
 def _client_key() -> str:
-    """X-Request-Id 的签名公钥（公开值）：来自配置 LOGEARN_CLIENT_KEY（网页创建 API Key 时「复制配置」一并给出）。
-    没有匿名取公钥接口；公钥轮换后需重新复制配置。缺失直接报错，不再静默发出无签名的请求 id。"""
-    k = _norm_key(os.environ.get('LOGEARN_CLIENT_KEY', ''))
+    """X-Request-Id 的 HMAC 密钥：该 API Key 自己登记的公钥（公开值，服务端本来就存着），来自配置 LOGEARN_API_PUBLIC_KEY
+    （网页创建 API Key 时「复制配置」一并给出）。没有任何全站公钥，也就没有轮换问题。缺失直接报错，不再静默发出无签名的请求 id。"""
+    k = _norm_key(os.environ.get('LOGEARN_API_PUBLIC_KEY', ''))
     if not k:
-        raise ApiError('LOGEARN_CLIENT_KEY 未配置：请在网页「API」页重新「复制配置」（含 LOGEARN_CLIENT_KEY），写入 ~/.config/logearn/.env')
+        raise ApiError('LOGEARN_API_PUBLIC_KEY 未配置：请在网页「API」页重新「复制配置」（含 LOGEARN_API_PUBLIC_KEY），写入 ~/.config/logearn/.env')
     return k
 
 
@@ -242,7 +242,7 @@ def get_native_price(chain: int = None) -> dict:
         body['chain'] = chain
     res = call_skill('get_native_price', body)
     if not isinstance(res, dict) or res.get('code') != 200 or res.get('data') is None:
-        raise ApiError(f'native price unavailable: {res.get("message") if isinstance(res, dict) else res}')
+        raise ApiError(f'{(res.get("msg") or res.get("message")) if isinstance(res, dict) else res}')
     return res['data']
 
 
