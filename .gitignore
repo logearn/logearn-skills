@@ -13,3 +13,4 @@ __pycache__/
 
 # Native price cache
 .cache/
+.idea
